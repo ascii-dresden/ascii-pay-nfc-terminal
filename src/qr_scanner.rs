@@ -72,7 +72,9 @@ fn grep(state: &mut State, value: i32, key: EV_KEY) {
                 return;
             }
 
-            state.sender.send((state.id, state.buffer.clone())).unwrap();
+            if let Err(_) = state.sender.send((state.id, state.buffer.clone())) {
+                println!("Cannot send '{}'", state.buffer);
+            }
             state.buffer = String::new();
             return;
         }
@@ -91,11 +93,20 @@ fn grep(state: &mut State, value: i32, key: EV_KEY) {
     state.buffer.push(ch);
 }
 
-pub fn new(id: i32, sender: Sender<(i32, String)>, file: &str) {
-    let f = File::open(file).unwrap();
-    thread::spawn(move || {
-        let mut d = Device::new().unwrap();
-        d.set_fd(f).unwrap();
+fn generate(id: i32, sender: Sender<(i32, String)>, file: &str) {
+        let f = match File::open(file){
+            Ok(f) => f,
+            Err(_) => return,
+        };
+
+        let mut d = match Device::new() {
+            Some(d) => d,
+            None => return,
+        };
+
+        if let Err(_) = d.set_fd(f) {
+            return;
+        }
 
         let mut state = State {
             id,
@@ -111,7 +122,21 @@ pub fn new(id: i32, sender: Sender<(i32, String)>, file: &str) {
                 if let EventCode::EV_KEY(key) = k.1.event_code {
                     grep(&mut state, k1.value, key);
                 }
+            } else {
+                println!("Disconnect qr scanner {}", id);
+                break;
             }
+        }
+}
+
+pub fn new(id: i32, sender: Sender<(i32, String)>, file: &str) {
+    println!("Create qr scanner {} at {}", id, file);
+    let file = file.to_owned();
+    thread::spawn(move || {
+        loop {
+            generate(id, sender.clone(), &file);
+            println!("Cannot connect to qr scanner {}. Try again later!", id);
+            std::thread::sleep(std::time::Duration::from_secs(1));
         }
     });
 }
