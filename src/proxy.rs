@@ -43,11 +43,8 @@ async fn forward(
 pub fn start(broadcaster: Arc<Mutex<Broadcaster>>) {
     thread::spawn(move || {
         let mut sys = System::new("test");
-        println!("System startet");
 
         Broadcaster::spawn_ping(broadcaster.clone());
-
-        println!("Broadcaster startet");
 
         let listen_addr = "127.0.0.1";
         let listen_port = 8000;
@@ -78,8 +75,6 @@ pub fn start(broadcaster: Arc<Mutex<Broadcaster>>) {
         .unwrap()
         .system_exit()
         .run();
-
-        println!("Server startet");
 
         sys.block_on(srv)
     });

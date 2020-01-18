@@ -94,20 +94,22 @@ impl QrScanner {
         self.buffer.push(ch);
     }
 
-    fn run(&mut self) {
+    fn run(&mut self) -> bool {
         let f = match File::open(&self.path) {
             Ok(f) => f,
-            Err(_) => return,
+            Err(_) => return false,
         };
 
         let mut d = match Device::new() {
             Some(d) => d,
-            None => return,
+            None => return false,
         };
 
         if d.set_fd(f).is_err() {
-            return;
+            return false;
         }
+
+        println!("Connect qr scanner {}", self.path);
 
         loop {
             let a = d.next_event(evdev_rs::ReadFlag::NORMAL | evdev_rs::ReadFlag::BLOCKING);
@@ -117,15 +119,14 @@ impl QrScanner {
                     self.parse(k1.value, key);
                 }
             } else {
-                println!("Disconnect qr scanner {}", self.path);
                 break;
             }
         }
+
+        true
     }
 
     pub fn create(sender: Sender<String>, file: &str) {
-        println!("Create qr scanner {}", file);
-
         let mut qr = QrScanner {
             path: file.to_owned(),
             sender,
@@ -133,12 +134,11 @@ impl QrScanner {
             shift: false,
         };
 
-        thread::spawn(move || {
-            loop {
-                qr.run();
-                // println!("Cannot connect to qr scanner {}. Try again later!", id);
-                std::thread::sleep(std::time::Duration::from_secs(1));
+        thread::spawn(move || loop {
+            if qr.run() {
+                println!("Disconnect qr scanner {}!", qr.path);
             }
+            std::thread::sleep(std::time::Duration::from_secs(1));
         });
     }
 }

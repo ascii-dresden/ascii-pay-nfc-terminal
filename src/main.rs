@@ -1,3 +1,4 @@
+mod nfc_reader;
 mod proxy;
 mod qr_scanner;
 mod sse;
@@ -10,23 +11,29 @@ fn main() {
     env_logger::init();
     dotenv::dotenv().ok();
 
-    // Start chat server actor
-    let broadcaster = sse::Broadcaster::create();
+    ctrlc::set_handler(move || {
+        std::process::exit(0);
+    })
+    .expect("Error setting Ctrl-C handler");
 
-    proxy::start(broadcaster.clone());
+    // Start chat server actor
+    // let broadcaster = sse::Broadcaster::create();
+    // proxy::start(broadcaster.clone());
 
     let (sender, receiver) = channel();
 
     QrScanner::create(
-        sender,
+        sender.clone(),
         &std::env::var("QR_SCANNER").expect("env 'QR_SCANNER' is required!"),
     );
+
+    nfc_reader::run(sender.clone());
 
     loop {
         if let Ok(data) = receiver.recv() {
             println!();
             println!("'{}'", data);
-            broadcaster.lock().unwrap().send(&data);
+        // broadcaster.lock().unwrap().send(&data);
         } else {
             println!("Error while receiving code!")
         }
