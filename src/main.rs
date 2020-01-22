@@ -1,3 +1,10 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+
+#[macro_use]
+extern crate hex_literal;
+
+mod nfc;
 mod nfc_reader;
 mod proxy;
 mod qr_scanner;

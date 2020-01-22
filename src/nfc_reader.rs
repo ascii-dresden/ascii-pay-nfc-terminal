@@ -3,46 +3,105 @@ use std::ffi::CStr;
 use std::sync::mpsc::Sender;
 use std::thread;
 
-fn get_serial(ctx: &Context, reader: &CStr) {
-    println!("get_serial");
-    let card = ctx
-        .connect(reader, ShareMode::Exclusive, Protocols::ANY)
-        .expect("failed to connect to card");
+use crate::nfc::{mifare_desfire, MiFareDESFire, NfcCard, NfcResult};
 
-    let apdu = b"\xff\xca\x00\x00\x07";
-    let mut rapdu_buf = [0; MAX_BUFFER_SIZE];
-    let rapdu = card.transmit(apdu, &mut rapdu_buf).expect("failed to transmit APDU to card");
-    println!("RAPDU: {:x?}", rapdu);
+fn handle_ascii_card(card: MiFareDESFire) -> NfcResult<()> {
+    let own_id = [0x41, 0x42, 0x43];
+    let default_key = hex!("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
+    let application_key = hex!("3C 9C 6C EF C9 CB CB 43 8B 89 86 A5 AC 43 DA E2");
+    let data = hex!("13 37 02 27");
 
-    let apdu = b"\xff\xca\x01\x00\x04";
-    let mut rapdu_buf = [0; MAX_BUFFER_SIZE];
-    let rapdu = card.transmit(apdu, &mut rapdu_buf).expect("failed to transmit APDU to card");
-    println!("RAPDU: {:x?}", rapdu);
+    let ids = card.get_application_ids()?;
 
-    // Get the card's ATR.
-    let mut atr_buf = [0; MAX_ATR_SIZE];
-    let atr = card
-        .get_attribute(Attribute::AtrString, &mut atr_buf)
-        .expect("failed to get ATR attribute");
-    println!("ATR from attribute: {:?}", atr);
+    if !ids.contains(&own_id) {
+        card.select_application([0, 0, 0])?;
+        let session_key = card.authenticate(0, &default_key)?;
 
-    // Get some attribute.
-    let mut ifd_version_buf = [0; 4];
-    let ifd_version = card
-        .get_attribute(Attribute::VendorIfdVersion, &mut ifd_version_buf)
-        .expect("failed to get vendor IFD version attribute");
-    println!("Vendor IFD version: {:?}", ifd_version);
+        card.create_application(
+            own_id,
+            mifare_desfire::KeySettings {
+                access_rights: mifare_desfire::KeySettingsAccessRights::MasterKey,
+                master_key_settings_changeable: true,
+                master_key_not_required_create_delete: false,
+                master_key_not_required_directory_access: false,
+                master_key_changeable: true,
+            },
+            1,
+        )?;
 
-    // Get some other attribute.
-    // This time we allocate a buffer of the needed length.
-    let vendor_name_len = card
-        .get_attribute_len(Attribute::VendorName)
-        .expect("failed to get the vendor name attribute length");
-    let mut vendor_name_buf = vec![0; vendor_name_len];
-    let vendor_name = card
-        .get_attribute(Attribute::VendorName, &mut vendor_name_buf)
-        .expect("failed to get vendor name attribute");
-    println!("Vendor name: {}", std::str::from_utf8(vendor_name).unwrap());
+        card.select_application(own_id)?;
+        let session_key = card.authenticate(0, &default_key)?;
+        card.change_key(0, true, &default_key, &application_key, &session_key)?;
+
+        println!("successfully init ascii card!")
+    } else {
+        card.select_application(own_id)?;
+        let session_key = card.authenticate(0, &application_key)?;
+
+        println!("found ascii card!");
+
+        card.delete_file(0)?;
+        let file_list = card.get_file_ids()?;
+
+        println!("{:X?}", file_list);
+
+        if !file_list.contains(&0) {
+            card.create_std_data_file(
+                0,
+                mifare_desfire::FileSettingsCommunication::MACed,
+                mifare_desfire::FileSettingsAccessRights {
+                    read: mifare_desfire::FileSettingsAccessRightsKey::Free,
+                    write: mifare_desfire::FileSettingsAccessRightsKey::MasterKey,
+                    read_write: mifare_desfire::FileSettingsAccessRightsKey::MasterKey,
+                    change_access: mifare_desfire::FileSettingsAccessRightsKey::MasterKey,
+                },
+                data.len() as u32,
+            )?;
+
+            card.write_data(
+                0,
+                0,
+                &data,
+                mifare_desfire::Encryption::MACed(session_key.clone()),
+            )?;
+        }
+
+        println!(
+            "{:X?}",
+            card.read_data(0, 0, 0, mifare_desfire::Encryption::MACed(session_key))
+        );
+    }
+
+    Ok(())
+}
+
+fn get_serial(ctx: &Context, reader: &CStr) -> NfcResult<()> {
+    let card = NfcCard::new(
+        ctx.connect(reader, ShareMode::Exclusive, Protocols::ANY)
+            .expect("failed to connect to card"),
+    );
+
+    let atr = card.get_atr()?;
+    println!("{:X?}", atr);
+
+    match atr.as_slice() {
+        b"\x3B\x81\x80\x01\x80\x80" => {
+            println!("DESFIRE EV1");
+            let c = MiFareDESFire::new(card);
+
+            match handle_ascii_card(c) {
+                Ok(_) => println!("ok"),
+                Err(_) => println!("this is not a ascii card!"),
+            }
+        }
+        _ => {
+            println!("GENERIC CARD");
+            let uid = card.transmit(b"\xff\xca\x00\x00\x07")?;
+            println!("UID: {:X?}", uid);
+        }
+    }
+
+    Ok(())
 }
 
 pub fn run(sender: Sender<String>) {
