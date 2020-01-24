@@ -42,7 +42,7 @@ async fn forward(
 
 pub fn start(broadcaster: Arc<Mutex<Broadcaster>>) {
     thread::spawn(move || {
-        let mut sys = System::new("test");
+        let mut sys = System::new("sse");
 
         Broadcaster::spawn_ping(broadcaster.clone());
 

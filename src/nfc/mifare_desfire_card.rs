@@ -8,7 +8,7 @@ use super::utils::*;
 use super::NfcCard;
 
 pub struct MiFareDESFire {
-    card: NfcCard,
+    pub card: NfcCard,
 }
 
 impl MiFareDESFire {
@@ -29,12 +29,12 @@ impl MiFareDESFire {
     }
 
     fn transmit(&self, command: u8, data: &[u8]) -> NfcResult<(Status, Vec<u8>)> {
-        println!(
-            "  Send Command: {:X?}, l={}, data={:X?}",
-            command,
-            data.len(),
-            data
-        );
+        // println!(
+        //     "  Send Command: {:X?}, l={}, data={:X?}",
+        //     command,
+        //     data.len(),
+        //     data
+        // );
 
         let mut query = Vec::with_capacity(data.len() + 1);
         query.push(command);
@@ -46,7 +46,7 @@ impl MiFareDESFire {
         }
 
         let status = Status::parse(data.remove(0));
-        println!("   --> {:X?}, l={}, data={:X?}", status, data.len(), data);
+        // println!("   --> {:X?}, l={}, data={:X?}", status, data.len(), data);
 
         if data.as_slice() == [0x90, 0x00] {
             data = vec![];

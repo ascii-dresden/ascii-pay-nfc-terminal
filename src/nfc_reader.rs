@@ -3,9 +3,10 @@ use std::ffi::CStr;
 use std::sync::mpsc::Sender;
 use std::thread;
 
-use crate::nfc::{mifare_desfire, MiFareDESFire, NfcCard, NfcResult};
+use crate::nfc::{mifare_desfire, MiFareDESFire, NfcCard, NfcResult, utils};
+use crate::AuthDevice;
 
-fn handle_ascii_card(card: MiFareDESFire) -> NfcResult<()> {
+fn handle_ascii_card(sender: &Sender<AuthDevice>, card: MiFareDESFire) -> NfcResult<()> {
     let own_id = [0x41, 0x42, 0x43];
     let default_key = hex!("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
     let application_key = hex!("3C 9C 6C EF C9 CB CB 43 8B 89 86 A5 AC 43 DA E2");
@@ -70,41 +71,61 @@ fn handle_ascii_card(card: MiFareDESFire) -> NfcResult<()> {
             "{:X?}",
             card.read_data(0, 0, 0, mifare_desfire::Encryption::MACed(session_key))
         );
+
+        let atr = card.card.get_atr()?;
+        let uid = card.get_version()?.id();
+
+        let auth_device = AuthDevice::AsciiCard {
+            card_type: utils::bytes_to_string(&atr),
+            card_id: utils::bytes_to_string(&uid),
+            account: utils::bytes_to_string(&data),
+        };
+
+        if sender.send(auth_device).is_err() {
+            println!("Cannot send 'nfc card'");
+        }
     }
 
     Ok(())
 }
 
-fn get_serial(ctx: &Context, reader: &CStr) -> NfcResult<()> {
+fn get_serial(sender: &Sender<AuthDevice>, ctx: &Context, reader: &CStr) -> NfcResult<()> {
     let card = NfcCard::new(
         ctx.connect(reader, ShareMode::Exclusive, Protocols::ANY)
             .expect("failed to connect to card"),
     );
 
     let atr = card.get_atr()?;
-    println!("{:X?}", atr);
+    let uid = card.transmit(b"\xff\xca\x00\x00\x07")?;
+    // println!("{:X?}", atr);
 
     match atr.as_slice() {
         b"\x3B\x81\x80\x01\x80\x80" => {
-            println!("DESFIRE EV1");
             let c = MiFareDESFire::new(card);
 
-            match handle_ascii_card(c) {
-                Ok(_) => println!("ok"),
-                Err(_) => println!("this is not a ascii card!"),
+            if handle_ascii_card(sender, c).is_ok() {
+                return Ok(());
             }
         }
-        _ => {
-            println!("GENERIC CARD");
-            let uid = card.transmit(b"\xff\xca\x00\x00\x07")?;
-            println!("UID: {:X?}", uid);
-        }
+        _ => {}
+    }
+
+    // println!("GENERIC CARD");
+    // println!("UID: {:X?}", uid);
+
+    let auth_device = AuthDevice::GenericNfc {
+        card_type: utils::bytes_to_string(&atr),
+        card_id: utils::bytes_to_string(&uid),
+    };
+
+    if sender.send(auth_device).is_err() {
+        println!("Cannot send 'nfc card'");
     }
 
     Ok(())
 }
 
-pub fn run(sender: Sender<String>) {
+pub fn run(sender: Sender<AuthDevice>) {
     thread::spawn(move || {
         let ctx = Context::establish(Scope::User).expect("failed to establish context");
 
@@ -118,11 +139,11 @@ pub fn run(sender: Sender<String>) {
             fn is_dead(rs: &ReaderState) -> bool {
                 rs.event_state().intersects(State::UNKNOWN | State::IGNORE)
             }
-            for rs in &reader_states {
-                if is_dead(rs) {
-                    println!("Removing {:?}", rs.name());
-                }
-            }
+            // for rs in &reader_states {
+            //     if is_dead(rs) {
+            //         println!("Removing {:?}", rs.name());
+            //     }
+            // }
             reader_states.retain(|rs| !is_dead(rs));
 
             // Add new readers.
@@ -131,7 +152,7 @@ pub fn run(sender: Sender<String>) {
                 .expect("failed to list readers");
             for name in names {
                 if !reader_states.iter().any(|rs| rs.name() == name) {
-                    println!("Adding {:?}", name);
+                    // println!("Adding {:?}", name);
                     reader_states.push(ReaderState::new(name, State::UNAWARE));
                 }
             }
@@ -149,9 +170,11 @@ pub fn run(sender: Sender<String>) {
             println!();
             for rs in &reader_states {
                 if rs.name() != PNP_NOTIFICATION() {
-                    println!("{:?} {:?} {:?}", rs.name(), rs.event_state(), rs.atr());
+                    // println!("{:?} {:?} {:?}", rs.name(), rs.event_state(), rs.atr());
                     if rs.event_state().contains(State::PRESENT) {
-                        get_serial(&ctx, rs.name());
+                        if get_serial(&sender, &ctx, rs.name()).is_err() {
+                            println!("Error reading nfc card!");
+                        }
                     }
                 }
             }

@@ -200,6 +200,18 @@ impl Serializable for Version {
         })
     }
 }
+impl Version {
+    pub fn id(&self) -> Vec<u8> {
+        let mut data = Vec::new();
+
+        data.extend(&self.uid);
+        data.extend(&self.batch_nr);
+        data.push(self.year_of_production);
+        data.push(self.calendar_week_of_production);
+
+        data
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum KeySettingsAccessRights {

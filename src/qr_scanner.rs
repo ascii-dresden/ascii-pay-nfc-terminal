@@ -6,9 +6,11 @@ use std::fs::File;
 use std::sync::mpsc::Sender;
 use std::thread;
 
+use crate::AuthDevice;
+
 pub struct QrScanner {
     path: String,
-    sender: Sender<String>,
+    sender: Sender<AuthDevice>,
     buffer: String,
     shift: bool,
 }
@@ -73,7 +75,11 @@ impl QrScanner {
                     return;
                 }
 
-                if self.sender.send(self.buffer.clone()).is_err() {
+                let auth_device = AuthDevice::Qr {
+                    code: self.buffer.clone(),
+                };
+
+                if self.sender.send(auth_device).is_err() {
                     println!("Cannot send '{}'", self.buffer);
                 }
                 self.buffer = String::new();
@@ -126,7 +132,7 @@ impl QrScanner {
         true
     }
 
-    pub fn create(sender: Sender<String>, file: &str) {
+    pub fn create(sender: Sender<AuthDevice>, file: &str) {
         let mut qr = QrScanner {
             path: file.to_owned(),
             sender,
