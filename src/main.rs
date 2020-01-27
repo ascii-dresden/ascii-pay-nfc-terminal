@@ -6,30 +6,34 @@ extern crate hex_literal;
 #[macro_use]
 extern crate serde;
 
+mod http_client;
 mod nfc;
-mod nfc_reader;
+mod nfc_module;
 mod proxy;
-mod qr_scanner;
+mod qr_module;
 mod sse;
 
+use serde_json::Value;
 use std::sync::mpsc::channel;
-use actix_rt::System;
 
-use qr_scanner::QrScanner;
-
-#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
-pub enum AuthDevice {
-    Qr {
+#[derive(Debug, Serialize, Clone)]
+#[serde(tag = "type", content = "content")]
+#[serde(rename_all = "kebab-case")]
+pub enum Message {
+    Account {
+        #[serde(flatten)]
+        account: Value,
+    },
+    Product {
+        #[serde(flatten)]
+        product: Value,
+    },
+    QrCode {
         code: String,
     },
-    AsciiCard {
-        card_type: String,
-        card_id: String,
-        account: String,
-    },
-    GenericNfc {
-        card_type: String,
-        card_id: String,
+    NfcCard {
+        id: String,
+        writeable: bool,
     },
 }
 
@@ -37,70 +41,34 @@ fn main() {
     env_logger::init();
     dotenv::dotenv().ok();
 
+    // Register shutdown handler
     ctrlc::set_handler(move || {
         std::process::exit(0);
     })
     .expect("Error setting Ctrl-C handler");
 
-    // Start chat server actor
+    // Start sse server
     let broadcaster = sse::Broadcaster::create();
     proxy::start(broadcaster.clone());
 
-    let (sender, receiver) = channel::<AuthDevice>();
+    let (sender, receiver) = channel::<Message>();
 
-    QrScanner::create(
-        sender.clone(),
-        &std::env::var("QR_SCANNER").expect("env 'QR_SCANNER' is required!"),
-    );
+    // Init qr scanner
+    qr_module::create(sender.clone());
 
-    nfc_reader::run(sender.clone());
-
-    let mut actix_sys = System::new("sse");
+    // Init nfc scanner
+    nfc_module::create(sender);
 
     loop {
-        if let Ok(data) = receiver.recv() {
+        if let Ok(message) = receiver.recv() {
             // println!();
             // println!("{:#?}", data);
 
-            if let Some(s) = parse_device(&mut actix_sys, &data) {
+            if let Ok(s) = serde_json::to_string(&message) {
                 broadcaster.lock().unwrap().send(&s);
-            } else {
-                if let Ok(s) = serde_json::to_string(&data) {
-                    broadcaster.lock().unwrap().send(&s);
-                }
             }
         } else {
             println!("Error while receiving code!")
         }
     }
-}
-
-use actix_web::client::Client;
-
-fn parse_device(sys: &mut actix_rt::SystemRunner, device: &AuthDevice) -> Option<String> {
-    let code = match device {
-        AuthDevice::Qr{code} => code,
-        _ => return None,
-    };
-
-    let forward_url = format!(
-        "http://localhost:8080/api/v1/barcode/find?code={}", 
-        &code
-    );
-
-    sys.block_on(request(forward_url))
-}
-
-async fn request(url: String) -> Option<String> {
-    let client = Client::new();
-    let mut response = client.get(url).send().await.ok()?;
-
-    if response.status() != 200 {
-        return None;
-    }
-
-    let body = response.body().await.ok()?;
-    let s = String::from_utf8(body.to_vec()).ok()?;
-
-    Some(s)
 }

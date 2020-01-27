@@ -6,17 +6,18 @@ use std::fs::File;
 use std::sync::mpsc::Sender;
 use std::thread;
 
-use crate::AuthDevice;
+use crate::http_client::*;
+use crate::Message;
 
 pub struct QrScanner {
     path: String,
-    sender: Sender<AuthDevice>,
+    sender: Sender<Message>,
     buffer: String,
     shift: bool,
 }
 
 impl QrScanner {
-    fn parse(&mut self, value: i32, key: EV_KEY) {
+    fn parse(&mut self, value: i32, key: EV_KEY) -> Option<String> {
         let ch = match key {
             EV_KEY::KEY_1 => ('1', '!'),
             EV_KEY::KEY_2 => ('2', '@'),
@@ -68,36 +69,33 @@ impl QrScanner {
             EV_KEY::KEY_SPACE => (' ', ' '),
             EV_KEY::KEY_LEFTSHIFT | EV_KEY::KEY_RIGHTSHIFT => {
                 self.shift = value == 1;
-                return;
+                return None;
             }
             EV_KEY::KEY_ENTER => {
                 if value != 1 {
-                    return;
+                    return None;
                 }
 
-                let auth_device = AuthDevice::Qr {
-                    code: self.buffer.clone(),
-                };
+                let result = self.buffer.clone();
 
-                if self.sender.send(auth_device).is_err() {
-                    println!("Cannot send '{}'", self.buffer);
-                }
                 self.buffer = String::new();
-                return;
+                return Some(result);
             }
             _ => {
                 println!("Unknown: {:?}", key);
-                return;
+                return None;
             }
         };
 
         if value != 1 {
-            return;
+            return None;
         }
 
         let ch = if self.shift { ch.1 } else { ch.0 };
 
         self.buffer.push(ch);
+
+        None
     }
 
     fn run(&mut self) -> bool {
@@ -122,7 +120,9 @@ impl QrScanner {
             if let Ok(k) = a {
                 let k1 = k.1.clone();
                 if let EventCode::EV_KEY(key) = k.1.event_code {
-                    self.parse(k1.value, key);
+                    if let Some(code) = self.parse(k1.value, key) {
+                        self.communicate(&code);
+                    }
                 }
             } else {
                 break;
@@ -132,7 +132,41 @@ impl QrScanner {
         true
     }
 
-    pub fn create(sender: Sender<AuthDevice>, file: &str) {
+    fn communicate(&self, code: &str) {
+        let req = IdentificationRequest::Barcode {
+            code: code.to_owned(),
+        };
+        if let Some(res) = send_identify(req) {
+            match res {
+                IdentificationResponse::Account { account } => {
+                    if self.sender.send(Message::Account { account }).is_err() {
+                        // TODO Error
+                    }
+                }
+                IdentificationResponse::Product { product } => {
+                    if self.sender.send(Message::Product { product }).is_err() {
+                        // TODO Error
+                    }
+                }
+                IdentificationResponse::NotFound => {
+                    if self
+                        .sender
+                        .send(Message::QrCode {
+                            code: code.to_owned(),
+                        })
+                        .is_err()
+                    {
+                        // TODO Error
+                    }
+                }
+                _ => {
+                    // Unexpected response
+                }
+            }
+        }
+    }
+
+    pub fn create(sender: Sender<Message>, file: &str) {
         let mut qr = QrScanner {
             path: file.to_owned(),
             sender,
@@ -146,5 +180,12 @@ impl QrScanner {
             }
             std::thread::sleep(std::time::Duration::from_secs(1));
         });
+    }
+
+    pub fn find_files() -> Vec<String> {
+        // TODO
+        vec![
+            "/dev/input/event17".to_owned()
+        ]
     }
 }

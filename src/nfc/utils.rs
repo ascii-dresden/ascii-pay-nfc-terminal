@@ -39,6 +39,12 @@ pub fn bytes_to_string(bytes: &[u8]) -> String {
         .join(" ")
 }
 
+pub fn str_to_bytes(s: &str) -> Vec<u8> {
+    s.split(' ')
+        .map(|x| u8::from_str_radix(x, 16).unwrap_or(0))
+        .collect()
+}
+
 pub trait Serializable
 where
     Self: std::marker::Sized,
