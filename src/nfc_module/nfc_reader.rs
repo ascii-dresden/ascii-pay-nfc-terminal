@@ -120,6 +120,9 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
                         } else {
                             // Remove current card.
                             current_cards.remove(&name);
+                            if sender.send(Message::RemoveNfcCard).is_err() {
+                                // TODO error
+                            }
                         }
                     }
                 }

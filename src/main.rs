@@ -36,6 +36,7 @@ pub enum Message {
         id: String,
         writeable: bool,
     },
+    RemoveNfcCard,
     PaymentToken {
         token: String,
     },
