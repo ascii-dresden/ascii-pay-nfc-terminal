@@ -2,6 +2,7 @@ use std::net::ToSocketAddrs;
 use std::sync::{Arc, Mutex};
 
 use crate::sse::{self, Broadcaster};
+use crate::ApplicationContext;
 use actix_rt::System;
 use actix_web::client::Client;
 use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
@@ -40,7 +41,33 @@ async fn forward(
     Ok(client_resp.body(res.body().await?))
 }
 
-pub fn start(broadcaster: Arc<Mutex<Broadcaster>>) {
+#[derive(Debug, Deserialize)]
+struct RequestPaymentToken {
+    amount: i32,
+}
+
+async fn request_payment_token(
+    context: web::Data<Arc<Mutex<ApplicationContext>>>,
+    request: web::Json<RequestPaymentToken>,
+) -> Result<HttpResponse, Error> {
+    let mut c = context.lock().unwrap();
+
+    c.request_payment(request.amount);
+
+    Ok(HttpResponse::Ok().finish())
+}
+
+async fn request_reauthentication(
+    context: web::Data<Arc<Mutex<ApplicationContext>>>,
+) -> Result<HttpResponse, Error> {
+    let mut c = context.lock().unwrap();
+
+    c.request_reauthentication();
+
+    Ok(HttpResponse::Ok().finish())
+}
+
+pub fn start(broadcaster: Arc<Mutex<Broadcaster>>, context: Arc<Mutex<ApplicationContext>>) {
     thread::spawn(move || {
         let mut sys = System::new("sse");
 
@@ -67,8 +94,11 @@ pub fn start(broadcaster: Arc<Mutex<Broadcaster>>) {
                 .data(Client::new())
                 .data(forward_url.clone())
                 .data(broadcaster.clone())
+                .data(context.clone())
                 .wrap(middleware::Logger::default())
                 .service(web::resource("/events").to(sse::new_client))
+                .service(web::resource("/request-payment-token").route(web::post().to(request_payment_token)))
+                .service(web::resource("/reauthenticate").route(web::get().to(request_reauthentication)))
                 .default_service(web::route().to(forward))
         })
         .bind((listen_addr, listen_port))

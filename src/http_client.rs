@@ -79,3 +79,44 @@ pub fn send_identify(body: IdentificationRequest) -> Option<IdentificationRespon
 
     response.json().ok()
 }
+
+pub fn send_token_request(body: TokenRequest) -> Option<TokenResponse> {
+    send_request("http://localhost:8080/api/v1/transaction/token", body)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "type")]
+#[serde(rename_all = "kebab-case")]
+pub enum Authentication {
+    Barcode {
+        code: String,
+    },
+    Nfc {
+        id: String,
+    },
+    NfcSecret {
+        id: String,
+        challenge: String,
+        response: String,
+    },
+}
+
+#[derive(Debug, Serialize)]
+pub struct TokenRequest {
+    pub amount: i32,
+    pub method: Authentication,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+#[serde(rename_all = "kebab-case")]
+pub enum TokenResponse {
+    Authorized {
+        token: String,
+    },
+    AuthenticationNeeded {
+        id: String,
+        key: String,
+        challenge: String,
+    },
+}

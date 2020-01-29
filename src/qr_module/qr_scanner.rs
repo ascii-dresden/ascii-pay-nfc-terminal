@@ -4,14 +4,16 @@ use evdev_rs::enums::{EventCode, EV_KEY};
 use evdev_rs::Device;
 use std::fs::File;
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::http_client::*;
-use crate::Message;
+use crate::{ApplicationContext, ApplicationState, Message};
 
 pub struct QrScanner {
     path: String,
     sender: Sender<Message>,
+    context: Arc<Mutex<ApplicationContext>>,
     buffer: String,
     shift: bool,
 }
@@ -133,6 +135,23 @@ impl QrScanner {
     }
 
     fn communicate(&self, code: &str) {
+        let mut c = self.context.lock().unwrap();
+        let state = c.get_state();
+
+        self.communicate_identify(code);
+
+        match state {
+            ApplicationState::Default | ApplicationState::Reauthenticate => {
+                // Nothing todo
+            },
+            ApplicationState::Payment { amount } => {
+                c.consume_state();
+                self.communicate_payment(code, amount);
+            },
+        }
+    }
+
+    fn communicate_identify(&self, code: &str) {
         let req = IdentificationRequest::Barcode {
             code: code.to_owned(),
         };
@@ -166,10 +185,27 @@ impl QrScanner {
         }
     }
 
-    pub fn create(sender: Sender<Message>, file: &str) {
+    fn communicate_payment(&self, code: &str, amount: i32) {
+        let req = TokenRequest {
+            amount,
+            method: Authentication::Barcode {
+                code: code.to_owned(),
+            },
+        };
+        if let Some(res) = send_token_request(req) {
+            if let TokenResponse::Authorized { token } = res {
+                if self.sender.send(Message::PaymentToken { token }).is_err() {
+                    // TODO Error
+                }
+            }
+        }
+    }
+
+    pub fn create(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>, file: &str) {
         let mut qr = QrScanner {
             path: file.to_owned(),
             sender,
+            context,
             buffer: String::new(),
             shift: false,
         };
@@ -184,8 +220,6 @@ impl QrScanner {
 
     pub fn find_files() -> Vec<String> {
         // TODO
-        vec![
-            "/dev/input/event17".to_owned()
-        ]
+        vec!["/dev/input/event17".to_owned()]
     }
 }

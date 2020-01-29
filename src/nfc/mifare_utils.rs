@@ -99,6 +99,18 @@ pub fn crc_checksum(value: &[u8]) -> [u8; 2] {
     [((wCrc) & 0xFF) as u8, ((wCrc >> 8) & 0xFF) as u8]
 }
 
+pub fn is_key_2des(key: &[u8]) -> bool {
+    if key.len() == 8 {
+        return false;
+    }
+
+    if key.len() == 16 && key[0..8] == key[8..16] {
+        return false;
+    }
+
+    true
+}
+
 #[test]
 pub fn crc_test() {
     let x = hex!("00 00");

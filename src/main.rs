@@ -15,6 +15,7 @@ mod sse;
 
 use serde_json::Value;
 use std::sync::mpsc::channel;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(tag = "type", content = "content")]
@@ -35,6 +36,43 @@ pub enum Message {
         id: String,
         writeable: bool,
     },
+    PaymentToken {
+        token: String,
+    },
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum ApplicationState {
+    Default,
+    Reauthenticate,
+    Payment { amount: i32 },
+}
+pub struct ApplicationContext {
+    state: ApplicationState,
+}
+impl ApplicationContext {
+    pub fn new() -> Self {
+        ApplicationContext {
+            state: ApplicationState::Default,
+        }
+    }
+    pub fn consume_state(&mut self) {
+        self.state = ApplicationState::Default;
+    }
+    pub fn request_payment(&mut self, amount: i32) {
+        self.state = ApplicationState::Payment { amount };
+    }
+    pub fn request_reauthentication(&mut self) {
+        self.state = ApplicationState::Reauthenticate
+    }
+    pub fn get_state(&self) -> ApplicationState {
+        self.state
+    }
+}
+impl Default for ApplicationContext {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 fn main() {
@@ -47,17 +85,19 @@ fn main() {
     })
     .expect("Error setting Ctrl-C handler");
 
+    let context = Arc::new(Mutex::new(ApplicationContext::new()));
+
     // Start sse server
     let broadcaster = sse::Broadcaster::create();
-    proxy::start(broadcaster.clone());
+    proxy::start(broadcaster.clone(), context.clone());
 
     let (sender, receiver) = channel::<Message>();
 
     // Init qr scanner
-    qr_module::create(sender.clone());
+    qr_module::create(sender.clone(), context.clone());
 
     // Init nfc scanner
-    nfc_module::create(sender);
+    nfc_module::create(sender, context);
 
     loop {
         if let Ok(message) = receiver.recv() {

@@ -37,15 +37,28 @@ fn init_ascii_card(card: &MiFareDESFire, key: &str, secret: &str) -> NfcResult<(
         ASCII_APPLICATION,
         mifare_desfire::KeySettings {
             access_rights: mifare_desfire::KeySettingsAccessRights::MasterKey,
-            master_key_settings_changeable: false,
+            master_key_settings_changeable: true,
             master_key_not_required_create_delete: false,
             master_key_not_required_directory_access: false,
-            master_key_changeable: false,
+            master_key_changeable: true,
         },
         1,
     )?;
     card.select_application(ASCII_APPLICATION)?;
     let session_key = card.authenticate(0, &DEFAULT_KEY)?;
+
+    card.change_key(0, true, &DEFAULT_KEY, &key, &session_key)?;
+    let session_key = card.authenticate(0, &key)?;
+    card.change_key_settings(
+        &mifare_desfire::KeySettings {
+            access_rights: mifare_desfire::KeySettingsAccessRights::MasterKey,
+            master_key_settings_changeable: false,
+            master_key_not_required_create_delete: false,
+            master_key_not_required_directory_access: false,
+            master_key_changeable: false,
+        }, 
+        &session_key
+    )?;
 
     card.create_std_data_file(
         ASCII_SECRET_FILE_NUMBER,
@@ -60,24 +73,16 @@ fn init_ascii_card(card: &MiFareDESFire, key: &str, secret: &str) -> NfcResult<(
     )?;
 
     card.write_data(
-        ASCII_SECRET_FILE_NUMBER, 
-        0, 
-        &secret, 
-        mifare_desfire::Encryption::Encrypted(session_key.clone()),
-    )?;
-
-    card.change_key(
+        ASCII_SECRET_FILE_NUMBER,
         0,
-        true,
-        &DEFAULT_KEY,
-        &key,
-        &session_key,
+        &secret,
+        mifare_desfire::Encryption::Encrypted(session_key.clone()),
     )?;
 
     Ok(())
 }
 
-pub fn handle(sender: &Sender<Message>, card: MiFareDESFire) -> NfcResult<()> {
+pub fn handle(sender: &Sender<Message>, card: &MiFareDESFire) -> NfcResult<()> {
     let card_id = format!(
         "{}:{}",
         utils::bytes_to_string(&card.card.get_atr()?),
@@ -162,8 +167,11 @@ pub fn handle(sender: &Sender<Message>, card: MiFareDESFire) -> NfcResult<()> {
     let secret = utils::bytes_to_string(&secret);
     let response = create_response(&secret, &challenge)?;
 
-    let response = if let Some(response) = send_identify(IdentificationRequest::Nfc { id: card_id })
-    {
+    let response = if let Some(response) = send_identify(IdentificationRequest::NfcSecret {
+        id: card_id,
+        challenge,
+        response,
+    }) {
         response
     } else {
         return Ok(());
@@ -181,6 +189,74 @@ pub fn handle(sender: &Sender<Message>, card: MiFareDESFire) -> NfcResult<()> {
             }
         }
         _ => {}
+    };
+
+    Ok(())
+}
+
+pub fn handle_payment(
+    sender: &Sender<Message>,
+    card: &MiFareDESFire,
+    amount: i32,
+) -> NfcResult<()> {
+    let card_id = format!(
+        "{}:{}",
+        utils::bytes_to_string(&card.card.get_atr()?),
+        utils::bytes_to_string(&card.get_version()?.id()),
+    );
+
+    let response = if let Some(response) = send_token_request(TokenRequest {
+        amount,
+        method: Authentication::Nfc {
+            id: card_id.clone(),
+        },
+    }) {
+        response
+    } else {
+        return Ok(());
+    };
+
+    let (_, key, challenge) = match response {
+        TokenResponse::Authorized { token } => {
+            if sender.send(Message::PaymentToken { token }).is_err() {
+                // TODO Error
+            }
+            return Ok(());
+        }
+        TokenResponse::AuthenticationNeeded { id, key, challenge } => {
+            if card_id != id {
+                return Ok(());
+            }
+            (id, key, challenge)
+        }
+    };
+
+    let key = utils::str_to_bytes(&key);
+
+    card.select_application(ASCII_APPLICATION)?;
+    let session_key = card.authenticate(0, &key)?;
+
+    let secret = card.read_data(0, 0, 0, mifare_desfire::Encryption::Encrypted(session_key))?;
+    let secret = utils::bytes_to_string(&secret);
+    let response = create_response(&secret, &challenge)?;
+
+    let response = if let Some(response) = send_token_request(TokenRequest {
+        amount,
+        method: Authentication::NfcSecret {
+            id: card_id,
+            challenge,
+            response,
+        },
+    }) {
+        response
+    } else {
+        return Ok(());
+    };
+
+    if let TokenResponse::Authorized { token } = response {
+        if sender.send(Message::PaymentToken { token }).is_err() {
+            // TODO Error
+        }
     };
 
     Ok(())

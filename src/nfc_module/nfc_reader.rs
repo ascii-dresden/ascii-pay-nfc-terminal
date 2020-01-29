@@ -1,41 +1,60 @@
 use pcsc::*;
-use std::ffi::CStr;
+use std::collections::HashMap;
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 
-use crate::nfc::{utils, MiFareDESFire, NfcCard, NfcResult};
-use crate::Message;
+use crate::nfc::{utils, MiFareDESFire, NfcCard};
+use crate::{ApplicationContext, ApplicationState, Message};
 
-fn get_serial(sender: &Sender<Message>, ctx: &Context, reader: &CStr) -> NfcResult<()> {
-    let card = NfcCard::new(
-        ctx.connect(reader, ShareMode::Exclusive, Protocols::ANY)
-            .expect("failed to connect to card"),
-    );
-
-    let atr = card.get_atr()?;
-    // let uid = card.transmit(b"\xff\xca\x00\x00\x07")?;
-    // println!("{:X?}", atr);
+fn handle_card(sender: &Sender<Message>, card: NfcCard) -> NfcCard {
+    let atr = match card.get_atr() {
+        Ok(atr) => atr,
+        Err(_) => return card,
+    };
 
     match atr.as_slice() {
         b"\x3B\x81\x80\x01\x80\x80" => {
-            let c = MiFareDESFire::new(card);
+            let card = MiFareDESFire::new(card);
 
-            if super::mifare_desfire::handle(sender, c).is_ok() {
-                return Ok(());
+            if super::mifare_desfire::handle(sender, &card).is_err() {
+                // TODO error
             }
+
+            card.into()
         }
         _ => {
             println!("Unsupported ATR: {}", utils::bytes_to_string(&atr));
+            card
         }
     }
+}
+fn handle_payment_card(sender: &Sender<Message>, card: NfcCard, amount: i32) -> NfcCard {
+    let atr = match card.get_atr() {
+        Ok(atr) => atr,
+        Err(_) => return card,
+    };
 
-    // println!("GENERIC CARD");
-    // println!("UID: {:X?}", uid);
+    match atr.as_slice() {
+        b"\x3B\x81\x80\x01\x80\x80" => {
+            let card = MiFareDESFire::new(card);
 
-    Ok(())
+            if
+             super::mifare_desfire::handle_payment(sender, &card, amount).is_err() {
+                // TODO error
+            }
+
+            card.into()
+        }
+        _ => {
+            println!("Unsupported ATR: {}", utils::bytes_to_string(&atr));
+            card
+        }
+    }
 }
 
-pub fn run(sender: Sender<Message>) {
+pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
     thread::spawn(move || {
         let ctx = Context::establish(Scope::User).expect("failed to establish context");
 
@@ -44,6 +63,9 @@ pub fn run(sender: Sender<Message>) {
             // Listen for reader insertions/removals, if supported.
             ReaderState::new(PNP_NOTIFICATION(), State::UNAWARE),
         ];
+
+        let mut current_cards: HashMap<String, NfcCard> = HashMap::new();
+
         loop {
             // Remove dead readers.
             fn is_dead(rs: &ReaderState) -> bool {
@@ -73,18 +95,67 @@ pub fn run(sender: Sender<Message>) {
             }
 
             // Wait until the state changes.
-            ctx.get_status_change(None, &mut reader_states)
-                .expect("failed to get status change");
+            if ctx
+                .get_status_change(Some(Duration::from_millis(500)), &mut reader_states)
+                .is_ok()
+            {
+                // Status has changed, read new states.
+                for rs in &reader_states {
+                    if rs.name() != PNP_NOTIFICATION() {
+                        let name = rs.name().to_str().unwrap_or("unknown").to_owned();
+                        if rs.event_state().contains(State::PRESENT) {
+                            if current_cards.contains_key(&name) {
+                                continue;
+                            }
 
-            // Print current state.
-            println!();
-            for rs in &reader_states {
-                if rs.name() != PNP_NOTIFICATION()
-                    && rs.event_state().contains(State::PRESENT)
-                    && get_serial(&sender, &ctx, rs.name()).is_err()
-                {
-                    println!("Error reading nfc card!");
+                            // New card, add to map und read.
+                            let card = NfcCard::new(
+                                ctx.connect(rs.name(), ShareMode::Exclusive, Protocols::ANY)
+                                    .expect("failed to connect to card"),
+                            );
+
+                            let card = handle_card(&sender, card);
+
+                            current_cards.insert(name, card);
+                        } else {
+                            // Remove current card.
+                            current_cards.remove(&name);
+                        }
+                    }
                 }
+            }
+
+            // Check context.
+            let mut c = context.lock().expect("Deadlock on ApplicationContext");
+            let state = c.get_state();
+            match state {
+                ApplicationState::Default => {
+                    // Nothing todo
+                },
+                ApplicationState::Reauthenticate => {
+                    // Request payment token for current card
+                    if !current_cards.is_empty() {
+                        c.consume_state();
+
+                        let key = current_cards.keys().next().unwrap().clone();
+
+                        let card = current_cards.remove(&key).unwrap();
+                        let card = handle_card(&sender, card);
+                        current_cards.insert(key, card);
+                    }
+                },
+                ApplicationState::Payment { amount } => {
+                    // Request payment token for current card
+                    if !current_cards.is_empty() {
+                        c.consume_state();
+
+                        let key = current_cards.keys().next().unwrap().clone();
+
+                        let card = current_cards.remove(&key).unwrap();
+                        let card = handle_payment_card(&sender, card, amount);
+                        current_cards.insert(key, card);
+                    }
+                },
             }
         }
     });

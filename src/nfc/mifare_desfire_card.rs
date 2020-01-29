@@ -96,7 +96,7 @@ impl MiFareDESFire {
         let mut session_key: Vec<u8> = Vec::with_capacity(16);
         session_key.extend(&rndA[0..4]);
         session_key.extend(&rndB[0..4]);
-        if key.len() > 8 {
+        if mifare_utils::is_key_2des(key) {
             session_key.extend(&rndA[4..8]);
             session_key.extend(&rndB[4..8]);
         }
@@ -138,7 +138,7 @@ impl MiFareDESFire {
             bytes.extend(new_key);
             bytes.extend(&mifare_utils::crc_checksum(new_key));
             bytes.extend(&[0, 0, 0, 0, 0, 0]);
-            mifare_utils::tdes_encrypt(&session_key[0..8], &bytes)?
+            mifare_utils::tdes_encrypt(session_key, &bytes)?
         } else {
             let mut mix_key = [0u8; 16];
             for i in 0..16 {
@@ -570,15 +570,21 @@ impl MiFareDESFire {
         Ok(())
     }
 
-    pub fn commit_transaction(&self, file_no: u8) -> NfcResult<()> {
+    pub fn commit_transaction(&self) -> NfcResult<()> {
         self.transmit(0xC7, &[])?;
 
         Ok(())
     }
 
-    pub fn abort_transaction(&self, file_no: u8) -> NfcResult<()> {
+    pub fn abort_transaction(&self) -> NfcResult<()> {
         self.transmit(0xA7, &[])?;
 
         Ok(())
+    }
+}
+
+impl Into<NfcCard> for MiFareDESFire {
+    fn into(self) -> NfcCard {
+        self.card
     }
 }
