@@ -97,8 +97,13 @@ pub fn start(broadcaster: Arc<Mutex<Broadcaster>>, context: Arc<Mutex<Applicatio
                 .data(context.clone())
                 .wrap(middleware::Logger::default())
                 .service(web::resource("/events").to(sse::new_client))
-                .service(web::resource("/request-payment-token").route(web::post().to(request_payment_token)))
-                .service(web::resource("/reauthenticate").route(web::get().to(request_reauthentication)))
+                .service(
+                    web::resource("/request-payment-token")
+                        .route(web::post().to(request_payment_token)),
+                )
+                .service(
+                    web::resource("/reauthenticate").route(web::get().to(request_reauthentication)),
+                )
                 .default_service(web::route().to(forward))
         })
         .bind((listen_addr, listen_port))

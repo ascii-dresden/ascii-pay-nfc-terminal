@@ -40,8 +40,7 @@ fn handle_payment_card(sender: &Sender<Message>, card: NfcCard, amount: i32) -> 
         b"\x3B\x81\x80\x01\x80\x80" => {
             let card = MiFareDESFire::new(card);
 
-            if
-             super::mifare_desfire::handle_payment(sender, &card, amount).is_err() {
+            if super::mifare_desfire::handle_payment(sender, &card, amount).is_err() {
                 // TODO error
             }
 
@@ -134,7 +133,7 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
             match state {
                 ApplicationState::Default => {
                     // Nothing todo
-                },
+                }
                 ApplicationState::Reauthenticate => {
                     // Request payment token for current card
                     if !current_cards.is_empty() {
@@ -146,7 +145,7 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
                         let card = handle_card(&sender, card);
                         current_cards.insert(key, card);
                     }
-                },
+                }
                 ApplicationState::Payment { amount } => {
                     // Request payment token for current card
                     if !current_cards.is_empty() {
@@ -158,7 +157,7 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
                         let card = handle_payment_card(&sender, card, amount);
                         current_cards.insert(key, card);
                     }
-                },
+                }
             }
         }
     });

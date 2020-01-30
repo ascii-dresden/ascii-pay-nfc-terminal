@@ -56,8 +56,8 @@ fn init_ascii_card(card: &MiFareDESFire, key: &str, secret: &str) -> NfcResult<(
             master_key_not_required_create_delete: false,
             master_key_not_required_directory_access: false,
             master_key_changeable: false,
-        }, 
-        &session_key
+        },
+        &session_key,
     )?;
 
     card.create_std_data_file(
