@@ -1,7 +1,7 @@
 use std::sync::mpsc::Sender;
 
 use crate::http_client::*;
-use crate::nfc::{NfcCard, utils, NfcResult};
+use crate::nfc::{utils, NfcCard, NfcResult};
 use crate::Message;
 
 fn get_id(card: &NfcCard) -> NfcResult<Vec<u8>> {
@@ -44,20 +44,14 @@ pub fn handle(sender: &Sender<Message>, card: &NfcCard) -> NfcResult<()> {
             {
                 // TODO Error
             }
-        },
-        _ => {
-
         }
+        _ => {}
     };
 
     Ok(())
 }
 
-pub fn handle_payment(
-    sender: &Sender<Message>,
-    card: &NfcCard,
-    amount: i32,
-) -> NfcResult<()> {
+pub fn handle_payment(sender: &Sender<Message>, card: &NfcCard, amount: i32) -> NfcResult<()> {
     let card_id = format!(
         "{}:{}",
         utils::bytes_to_string(&card.get_atr()?),
@@ -81,9 +75,7 @@ pub fn handle_payment(
                 // TODO Error
             }
         }
-        _ => {
-            
-        }
+        _ => {}
     };
 
     Ok(())

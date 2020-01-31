@@ -24,21 +24,21 @@ fn handle_card(sender: &Sender<Message>, card: NfcCard) -> NfcCard {
             }
 
             card.into()
-        },
+        }
         // mifare classic
         b"\x3B\x8F\x80\x01\x80\x4F\x0C\xA0\x00\x00\x03\x06\x03\x00\x01\x00\x00\x00\x00\x6A" => {
             if super::mifare_classic::handle(sender, &card).is_err() {
                 // TODO error
             }
             card
-        },
+        }
         // Yubikey Neo
         b"\x3B\x8C\x80\x01\x59\x75\x62\x69\x6B\x65\x79\x4E\x45\x4F\x72\x33\x58" => {
             if super::mifare_classic::handle(sender, &card).is_err() {
                 // TODO error
             }
             card
-        },
+        }
         _ => {
             println!("Unsupported ATR: {}", utils::bytes_to_string(&atr));
             card
@@ -52,6 +52,7 @@ fn handle_payment_card(sender: &Sender<Message>, card: NfcCard, amount: i32) -> 
     };
 
     match atr.as_slice() {
+        // mifare desfire
         b"\x3B\x81\x80\x01\x80\x80" => {
             let card = MiFareDESFire::new(card);
 
@@ -60,21 +61,21 @@ fn handle_payment_card(sender: &Sender<Message>, card: NfcCard, amount: i32) -> 
             }
 
             card.into()
-        },
+        }
         // mifare classic
         b"\x3B\x8F\x80\x01\x80\x4F\x0C\xA0\x00\x00\x03\x06\x03\x00\x01\x00\x00\x00\x00\x6A" => {
             if super::mifare_classic::handle_payment(sender, &card, amount).is_err() {
                 // TODO error
             }
             card
-        },
+        }
         // Yubikey Neo
         b"\x3B\x8C\x80\x01\x59\x75\x62\x69\x6B\x65\x79\x4E\x45\x4F\x72\x33\x58" => {
             if super::mifare_classic::handle_payment(sender, &card, amount).is_err() {
                 // TODO error
             }
             card
-        },
+        }
         _ => {
             println!("Unsupported ATR: {}", utils::bytes_to_string(&atr));
             card
@@ -164,10 +165,10 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
                     // Nothing todo
                 }
                 ApplicationState::Reauthenticate => {
+                    c.consume_state();
+
                     // Request payment token for current card
                     if !current_cards.is_empty() {
-                        c.consume_state();
-
                         let key = current_cards.keys().next().unwrap().clone();
 
                         let card = current_cards.remove(&key).unwrap();
@@ -175,7 +176,7 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
                         current_cards.insert(key, card);
                     }
                 }
-                ApplicationState::Payment { amount } => {
+                ApplicationState::Payment { amount, .. } => {
                     // Request payment token for current card
                     if !current_cards.is_empty() {
                         c.consume_state();

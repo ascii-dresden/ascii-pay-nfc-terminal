@@ -144,7 +144,7 @@ impl QrScanner {
             ApplicationState::Default | ApplicationState::Reauthenticate => {
                 // Nothing todo
             }
-            ApplicationState::Payment { amount } => {
+            ApplicationState::Payment { amount, .. } => {
                 c.consume_state();
                 self.communicate_payment(code, amount);
             }
