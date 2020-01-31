@@ -4,9 +4,39 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use std::fs::File;
+use std::io::{BufReader, BufRead};
 
 use crate::nfc::{utils, MiFareDESFire, NfcCard};
 use crate::{ApplicationContext, ApplicationState, Message};
+
+pub fn identify_atr(atr: &[u8]) -> Vec<String> {
+    let atr_str = utils::bytes_to_string(atr);
+    let mut result: Vec<String> = Vec::new();
+
+    let file = match File::open("smartcard_list.txt") {
+        Ok(file) => file,
+        Err(_) => return result,
+    };
+    let reader = BufReader::new(file);
+
+    let mut found = false;
+    for line in reader.lines() {
+        if let Ok(line) = line {
+            if found {
+                if line.starts_with('\t') {
+                    result.push(line.trim().to_owned());
+                } else {
+                    found = false;
+                }
+            } else {
+                found = line.contains(&atr_str);
+            }
+        }
+    }
+
+    result
+}
 
 fn handle_card(sender: &Sender<Message>, card: NfcCard) -> NfcCard {
     let atr = match card.get_atr() {
@@ -14,9 +44,12 @@ fn handle_card(sender: &Sender<Message>, card: NfcCard) -> NfcCard {
         Err(_) => return card,
     };
 
+    identify_atr(&atr);
+
     match atr.as_slice() {
         // mifare desfire
         b"\x3B\x81\x80\x01\x80\x80" => {
+            println!("Insert 'mifare desfire' card");
             let card = MiFareDESFire::new(card);
 
             if super::mifare_desfire::handle(sender, &card).is_err() {
@@ -27,6 +60,7 @@ fn handle_card(sender: &Sender<Message>, card: NfcCard) -> NfcCard {
         }
         // mifare classic
         b"\x3B\x8F\x80\x01\x80\x4F\x0C\xA0\x00\x00\x03\x06\x03\x00\x01\x00\x00\x00\x00\x6A" => {
+            println!("Insert 'mifare classic' card");
             if super::mifare_classic::handle(sender, &card).is_err() {
                 // TODO error
             }
@@ -34,13 +68,24 @@ fn handle_card(sender: &Sender<Message>, card: NfcCard) -> NfcCard {
         }
         // Yubikey Neo
         b"\x3B\x8C\x80\x01\x59\x75\x62\x69\x6B\x65\x79\x4E\x45\x4F\x72\x33\x58" => {
+            println!("Insert 'Yubikey Neo' card");
             if super::mifare_classic::handle(sender, &card).is_err() {
                 // TODO error
             }
             card
         }
         _ => {
-            println!("Unsupported ATR: {}", utils::bytes_to_string(&atr));
+            println!("Insert unsupported card: {}", utils::bytes_to_string(&atr));
+
+            let mut ident = identify_atr(&atr);
+            if !ident.is_empty() {
+                println!("Identification: {}", ident.remove(0));
+
+                for line in ident {
+                    println!("    {}", line);
+                }
+            }
+
             card
         }
     }
@@ -148,9 +193,12 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
                             current_cards.insert(name, card);
                         } else {
                             // Remove current card.
-                            current_cards.remove(&name);
-                            if sender.send(Message::RemoveNfcCard).is_err() {
-                                // TODO error
+                            if current_cards.contains_key(&name) {
+                                current_cards.remove(&name);
+                                println!("Remove nfc card");
+                                if sender.send(Message::RemoveNfcCard).is_err() {
+                                    // TODO error
+                                }
                             }
                         }
                     }

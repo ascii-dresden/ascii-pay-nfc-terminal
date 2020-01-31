@@ -9,9 +9,10 @@ fn get_id(card: &NfcCard) -> NfcResult<Vec<u8>> {
 }
 
 pub fn handle(sender: &Sender<Message>, card: &NfcCard) -> NfcResult<()> {
+    let atr = card.get_atr()?;
     let card_id = format!(
         "{}:{}",
-        utils::bytes_to_string(&card.get_atr()?),
+        utils::bytes_to_string(&atr),
         utils::bytes_to_string(&get_id(card)?),
     );
 
@@ -38,6 +39,7 @@ pub fn handle(sender: &Sender<Message>, card: &NfcCard) -> NfcResult<()> {
             if sender
                 .send(Message::NfcCard {
                     id: card_id,
+                    name: super::identify_atr(&atr).get(0).cloned().unwrap_or_else(|| "".to_owned()),
                     writeable: false,
                 })
                 .is_err()

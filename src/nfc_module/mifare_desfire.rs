@@ -83,9 +83,10 @@ fn init_ascii_card(card: &MiFareDESFire, key: &str, secret: &str) -> NfcResult<(
 }
 
 pub fn handle(sender: &Sender<Message>, card: &MiFareDESFire) -> NfcResult<()> {
+    let atr = card.card.get_atr()?;
     let card_id = format!(
         "{}:{}",
-        utils::bytes_to_string(&card.card.get_atr()?),
+        utils::bytes_to_string(&atr),
         utils::bytes_to_string(&card.get_version()?.id()),
     );
 
@@ -115,6 +116,7 @@ pub fn handle(sender: &Sender<Message>, card: &MiFareDESFire) -> NfcResult<()> {
             if sender
                 .send(Message::NfcCard {
                     id: card_id,
+                    name: super::identify_atr(&atr).get(0).cloned().unwrap_or_else(|| "".to_owned()),
                     writeable,
                 })
                 .is_err()

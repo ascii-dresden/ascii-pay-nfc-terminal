@@ -36,6 +36,7 @@ pub enum Message {
     },
     NfcCard {
         id: String,
+        name: String,
         writeable: bool,
     },
     RemoveNfcCard,
