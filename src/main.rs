@@ -43,7 +43,7 @@ pub enum Message {
     PaymentToken {
         token: String,
     },
-    PaymentTimeout,
+    Timeout,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -52,35 +52,40 @@ pub enum ApplicationState {
     Reauthenticate,
     Payment {
         amount: i32,
-        request_date: SystemTime,
     },
 }
 pub struct ApplicationContext {
+    state_date: SystemTime,
     state: ApplicationState,
 }
 impl ApplicationContext {
     pub fn new() -> Self {
         ApplicationContext {
+            state_date: SystemTime::now(),
             state: ApplicationState::Default,
         }
     }
     pub fn consume_state(&mut self) {
+        self.state_date = SystemTime::now();
         self.state = ApplicationState::Default;
     }
     pub fn request_payment(&mut self, amount: i32) {
         println!("Request payment of {:.2}€", amount as f32 / 100.0);
-        let request_date = SystemTime::now();
+        self.state_date = SystemTime::now();
         self.state = ApplicationState::Payment {
             amount,
-            request_date,
         };
     }
     pub fn request_reauthentication(&mut self) {
         println!("Request nfc reauthentication");
-        self.state = ApplicationState::Reauthenticate
+        self.state_date = SystemTime::now();
+        self.state = ApplicationState::Reauthenticate;
     }
     pub fn get_state(&self) -> ApplicationState {
         self.state
+    }
+    pub fn get_state_date(&self) -> SystemTime {
+        self.state_date
     }
 }
 impl Default for ApplicationContext {
@@ -118,18 +123,19 @@ fn main() {
         loop {
             thread::sleep(Duration::from_secs(std::cmp::max(timeout, 1)));
             let mut c = context.lock().unwrap();
+            let time = c.get_state_date();
             let state = c.get_state();
 
             match state {
-                ApplicationState::Payment { request_date, .. } => {
+                ApplicationState::Payment { .. } | ApplicationState::Reauthenticate => {
                     let now = SystemTime::now();
-                    let duration = now.duration_since(request_date).unwrap();
+                    let duration = now.duration_since(time).unwrap();
                     let secs = duration.as_secs();
                     if secs >= 30 {
                         c.consume_state();
-                        println!("Payment request has timed out");
+                        println!("Request has timed out");
                         timeout = 30;
-                        sender.send(Message::PaymentTimeout).unwrap();
+                        sender.send(Message::Timeout).unwrap();
                     } else {
                         timeout = 30 - secs;
                     }
