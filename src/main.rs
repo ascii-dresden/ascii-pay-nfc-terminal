@@ -50,9 +50,7 @@ pub enum Message {
 pub enum ApplicationState {
     Default,
     Reauthenticate,
-    Payment {
-        amount: i32,
-    },
+    Payment { amount: i32 },
 }
 pub struct ApplicationContext {
     state_date: SystemTime,
@@ -72,9 +70,7 @@ impl ApplicationContext {
     pub fn request_payment(&mut self, amount: i32) {
         println!("Request payment of {:.2}€", amount as f32 / 100.0);
         self.state_date = SystemTime::now();
-        self.state = ApplicationState::Payment {
-            amount,
-        };
+        self.state = ApplicationState::Payment { amount };
     }
     pub fn request_reauthentication(&mut self) {
         println!("Request nfc reauthentication");

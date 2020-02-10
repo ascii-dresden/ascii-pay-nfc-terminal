@@ -10,6 +10,9 @@ const PICC_APPLICATION: [u8; 3] = hex!("00 00 00");
 const ASCII_APPLICATION: [u8; 3] = hex!("C0 FF EE");
 const ASCII_SECRET_FILE_NUMBER: u8 = 0;
 
+const MENSA_APPLICATION: [u8; 3] = hex!("5F 84 15");
+const MENSA_FILE_NUMBER: u8 = 1;
+
 fn is_writeable(card: &MiFareDESFire) -> NfcResult<bool> {
     card.select_application(PICC_APPLICATION)?;
     card.authenticate(0, &PICC_KEY)?;
@@ -19,6 +22,84 @@ fn is_writeable(card: &MiFareDESFire) -> NfcResult<bool> {
 fn create_response(_secret: &str, challenge: &str) -> NfcResult<String> {
     // TODO
     Ok(challenge.to_owned())
+}
+
+fn read_mensa_data(card: &MiFareDESFire) -> NfcResult<(i32, i32)> {
+    card.select_application(MENSA_APPLICATION)?;
+
+    let mut credit =
+        card.get_value(MENSA_FILE_NUMBER, mifare_desfire::Encryption::PlainText)? as i32;
+
+    let mut last_transaction = if let mifare_desfire::FileSettings::ValueFile {
+        limited_credit_value,
+        ..
+    } = card.get_file_settings(MENSA_FILE_NUMBER)?
+    {
+        limited_credit_value as i32
+    } else {
+        0
+    };
+
+    let credit_mod = credit % 10;
+    if credit_mod != 0 {
+        credit = -(credit - credit_mod);
+    }
+    credit /= 10;
+
+    let last_transaction_mod = last_transaction % 10;
+    if last_transaction_mod != 0 {
+        last_transaction = -(last_transaction - last_transaction_mod);
+    }
+    last_transaction /= 10;
+
+    Ok((credit, last_transaction))
+}
+
+fn write_mensa_data(
+    card: &MiFareDESFire,
+    credit: i32,
+    last_transaction: i32,
+    key: &[u8],
+) -> NfcResult<()> {
+    let mut credit = credit;
+    let mut _last_transaction = last_transaction;
+
+    if credit < 0 {
+        credit = -credit * 10 + 5;
+    } else {
+        credit *= 10;
+    }
+
+    if _last_transaction < 0 {
+        _last_transaction = -_last_transaction * 10 + 5;
+    } else {
+        _last_transaction *= 10;
+    }
+
+    card.select_application(MENSA_APPLICATION)?;
+
+    let last_credit =
+        card.get_value(MENSA_FILE_NUMBER, mifare_desfire::Encryption::PlainText)? as i32;
+    let diff = credit - last_credit;
+
+    if diff != 0 {
+        if diff < 0 {
+            card.debit(
+                MENSA_FILE_NUMBER,
+                diff.abs() as u32,
+                mifare_desfire::Encryption::PlainText,
+            )?;
+        } else {
+            card.credit(
+                MENSA_FILE_NUMBER,
+                diff as u32,
+                mifare_desfire::Encryption::PlainText,
+            )?;
+        }
+        card.commit_transaction()?;
+    }
+
+    Ok(())
 }
 
 fn init_ascii_card(card: &MiFareDESFire, key: &str, secret: &str) -> NfcResult<()> {
@@ -31,6 +112,9 @@ fn init_ascii_card(card: &MiFareDESFire, key: &str, secret: &str) -> NfcResult<(
     let application_ids = card.get_application_ids()?;
     if application_ids.contains(&ASCII_APPLICATION) {
         card.delete_application(ASCII_APPLICATION)?;
+    }
+    if application_ids.contains(&MENSA_APPLICATION) {
+        card.delete_application(MENSA_APPLICATION)?;
     }
 
     card.create_application(
@@ -79,6 +163,53 @@ fn init_ascii_card(card: &MiFareDESFire, key: &str, secret: &str) -> NfcResult<(
         mifare_desfire::Encryption::Encrypted(session_key.clone()),
     )?;
 
+    card.select_application(PICC_APPLICATION)?;
+    card.authenticate(0, &PICC_KEY)?;
+
+    card.create_application(
+        MENSA_APPLICATION,
+        mifare_desfire::KeySettings {
+            access_rights: mifare_desfire::KeySettingsAccessRights::MasterKey,
+            master_key_settings_changeable: true,
+            master_key_not_required_create_delete: true,
+            master_key_not_required_directory_access: true,
+            master_key_changeable: true,
+        },
+        1,
+    )?;
+    card.select_application(MENSA_APPLICATION)?;
+    let session_key = card.authenticate(0, &DEFAULT_KEY)?;
+
+    /*
+    card.change_key(0, true, &DEFAULT_KEY, &key, &session_key)?;
+    let session_key = card.authenticate(0, &key)?;
+    card.change_key_settings(
+        &mifare_desfire::KeySettings {
+            access_rights: mifare_desfire::KeySettingsAccessRights::MasterKey,
+            master_key_settings_changeable: true,
+            master_key_not_required_create_delete: false,
+            master_key_not_required_directory_access: true,
+            master_key_changeable: true,
+        },
+        &session_key,
+    )?;
+    */
+
+    card.create_value_file(
+        MENSA_FILE_NUMBER,
+        mifare_desfire::FileSettingsCommunication::PlainText,
+        mifare_desfire::FileSettingsAccessRights {
+            read: mifare_desfire::FileSettingsAccessRightsKey::Free,
+            write: mifare_desfire::FileSettingsAccessRightsKey::Free,
+            read_write: mifare_desfire::FileSettingsAccessRightsKey::Free,
+            change_access: mifare_desfire::FileSettingsAccessRightsKey::Free,
+        },
+        0,
+        100000000,
+        0,
+        true,
+    )?;
+
     Ok(())
 }
 
@@ -89,6 +220,8 @@ pub fn handle(sender: &Sender<Message>, card: &MiFareDESFire) -> NfcResult<()> {
         utils::bytes_to_string(&atr),
         utils::bytes_to_string(&card.get_version()?.id()),
     );
+
+    println!("Mensa Data: {:?}", read_mensa_data(card));
 
     let response = if let Some(response) = send_identify(IdentificationRequest::Nfc {
         id: card_id.clone(),
@@ -116,7 +249,10 @@ pub fn handle(sender: &Sender<Message>, card: &MiFareDESFire) -> NfcResult<()> {
             if sender
                 .send(Message::NfcCard {
                     id: card_id,
-                    name: super::identify_atr(&atr).get(0).cloned().unwrap_or_else(|| "".to_owned()),
+                    name: super::identify_atr(&atr)
+                        .get(0)
+                        .cloned()
+                        .unwrap_or_else(|| "".to_owned()),
                     writeable,
                 })
                 .is_err()
@@ -181,6 +317,14 @@ pub fn handle(sender: &Sender<Message>, card: &MiFareDESFire) -> NfcResult<()> {
 
     match response {
         IdentificationResponse::Account { account } => {
+            if let Some(credit_json) = account.get("credit") {
+                if let Some(credit) = credit_json.as_i64() {
+                    if write_mensa_data(card, credit as i32, 0, &key).is_err() {
+                        println!("Cannot write data");
+                    }
+                }
+            }
+
             if sender.send(Message::Account { account }).is_err() {
                 // TODO Error
             }

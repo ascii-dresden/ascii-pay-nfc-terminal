@@ -39,7 +39,10 @@ pub fn handle(sender: &Sender<Message>, card: &NfcCard) -> NfcResult<()> {
             if sender
                 .send(Message::NfcCard {
                     id: card_id,
-                    name: super::identify_atr(&atr).get(0).cloned().unwrap_or_else(|| "".to_owned()),
+                    name: super::identify_atr(&atr)
+                        .get(0)
+                        .cloned()
+                        .unwrap_or_else(|| "".to_owned()),
                     writeable: false,
                 })
                 .is_err()

@@ -243,8 +243,8 @@ impl MiFareDESFire {
         Ok(result)
     }
 
-    pub fn get_file_settings(&self) -> NfcResult<FileSettings> {
-        let (_, result) = self.transmit(0xF5, &[])?;
+    pub fn get_file_settings(&self, file_no: u8) -> NfcResult<FileSettings> {
+        let (_, result) = self.transmit(0xF5, &[file_no])?;
 
         FileSettings::from_slice(&result)
     }
@@ -466,7 +466,7 @@ impl MiFareDESFire {
 
         bytes.extend(&data);
 
-        let (_, _) = self.transmit(0x0C, &bytes)?;
+        let (status, _) = self.transmit(0x0C, &bytes)?;
 
         Ok(())
     }

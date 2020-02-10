@@ -1,11 +1,11 @@
 use pcsc::*;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use std::fs::File;
-use std::io::{BufReader, BufRead};
 
 use crate::nfc::{utils, MiFareDESFire, NfcCard};
 use crate::{ApplicationContext, ApplicationState, Message};

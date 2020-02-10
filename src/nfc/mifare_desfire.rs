@@ -397,6 +397,7 @@ impl Serializable for FileSettingsAccessRightsKey {
     }
 }
 
+#[derive(Debug)]
 pub enum FileSettingsCommunication {
     PlainText,
     MACed,
@@ -424,6 +425,7 @@ impl Serializable for FileSettingsCommunication {
     }
 }
 
+#[derive(Debug)]
 pub struct FileSettingsAccessRights {
     pub read: FileSettingsAccessRightsKey,
     pub write: FileSettingsAccessRightsKey,
@@ -457,6 +459,7 @@ impl Serializable for FileSettingsAccessRights {
     }
 }
 
+#[derive(Debug)]
 pub enum FileSettings {
     DataFile {
         commuincation: FileSettingsCommunication,
