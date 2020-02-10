@@ -10,6 +10,9 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
+    - name: Install dependencies
+      run: sudo apt-get install libpcsclite-dev
+
     - name: Install Rust stable
       run: |
         rustup toolchain update --no-self-update stable
