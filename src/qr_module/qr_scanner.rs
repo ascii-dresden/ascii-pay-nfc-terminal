@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::http_client::*;
-use crate::{ApplicationContext, ApplicationState, Message};
+use crate::{ApplicationContext, ApplicationState, Message, env};
 
 pub struct QrScanner {
     path: String,
@@ -219,7 +219,8 @@ impl QrScanner {
     }
 
     pub fn find_files() -> Vec<String> {
-        // TODO
-        vec!["/dev/input/event17".to_owned()]
+        env::QR_SCANNER.as_str().split(';')
+            .map(|s| s.trim().to_owned())
+            .collect()
     }
 }

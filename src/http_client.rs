@@ -4,6 +4,8 @@ use serde_json::Value;
 use std::marker::Sized;
 use std::time::Duration;
 
+use crate::env;
+
 #[derive(Debug, Serialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "kebab-case")]
@@ -64,8 +66,10 @@ where
 pub fn send_identify(body: IdentificationRequest) -> Option<IdentificationResponse> {
     let client = reqwest::blocking::Client::new();
 
+    let url = format!("{}/api/v1/identify", env::BASE_URL.as_str());
+
     let response = client
-        .post("http://localhost:8080/api/v1/identify")
+        .post(&url)
         .timeout(Duration::from_secs(10))
         .json(&body)
         .send()
@@ -79,7 +83,8 @@ pub fn send_identify(body: IdentificationRequest) -> Option<IdentificationRespon
 }
 
 pub fn send_token_request(body: TokenRequest) -> Option<TokenResponse> {
-    send_request("http://localhost:8080/api/v1/transaction/token", body)
+    let url = format!("{}/api/v1/transaction/token", env::BASE_URL.as_str());
+    send_request(&url, body)
 }
 
 #[derive(Debug, Serialize)]

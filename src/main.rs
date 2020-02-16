@@ -12,6 +12,7 @@ mod nfc_module;
 mod proxy;
 mod qr_module;
 mod sse;
+pub mod env;
 
 use serde_json::Value;
 use std::sync::mpsc::channel;
