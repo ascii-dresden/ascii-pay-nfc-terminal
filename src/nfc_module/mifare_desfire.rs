@@ -160,7 +160,7 @@ fn init_ascii_card(card: &MiFareDESFire, key: &str, secret: &str) -> NfcResult<(
         ASCII_SECRET_FILE_NUMBER,
         0,
         &secret,
-        mifare_desfire::Encryption::Encrypted(session_key.clone()),
+        mifare_desfire::Encryption::Encrypted(session_key),
     )?;
 
     card.select_application(PICC_APPLICATION)?;
@@ -205,7 +205,7 @@ fn init_ascii_card(card: &MiFareDESFire, key: &str, secret: &str) -> NfcResult<(
             change_access: mifare_desfire::FileSettingsAccessRightsKey::Free,
         },
         0,
-        100000000,
+        100_000_000,
         0,
         true,
     )?;
@@ -223,7 +223,7 @@ pub fn handle(sender: &Sender<Message>, card: &MiFareDESFire) -> NfcResult<()> {
 
     println!("Mensa Data: {:?}", read_mensa_data(card));
 
-    let response = if let Some(response) = send_identify(IdentificationRequest::Nfc {
+    let response = if let Ok(response) = send_identify(IdentificationRequest::Nfc {
         id: card_id.clone(),
     }) {
         response
@@ -276,7 +276,7 @@ pub fn handle(sender: &Sender<Message>, card: &MiFareDESFire) -> NfcResult<()> {
             init_ascii_card(&card, &key, &secret)?;
 
             // Request challenge token
-            let response = if let Some(response) = send_identify(IdentificationRequest::Nfc {
+            let response = if let Ok(response) = send_identify(IdentificationRequest::Nfc {
                 id: card_id.clone(),
             }) {
                 response
@@ -305,7 +305,7 @@ pub fn handle(sender: &Sender<Message>, card: &MiFareDESFire) -> NfcResult<()> {
     let secret = utils::bytes_to_string(&secret);
     let response = create_response(&secret, &challenge)?;
 
-    let response = if let Some(response) = send_identify(IdentificationRequest::NfcSecret {
+    let response = if let Ok(response) = send_identify(IdentificationRequest::NfcSecret {
         id: card_id,
         challenge,
         response,
@@ -351,7 +351,7 @@ pub fn handle_payment(
         utils::bytes_to_string(&card.get_version()?.id()),
     );
 
-    let response = if let Some(response) = send_token_request(TokenRequest {
+    let response = if let Ok(response) = send_token_request(TokenRequest {
         amount,
         method: Authentication::Nfc {
             id: card_id.clone(),
@@ -386,7 +386,7 @@ pub fn handle_payment(
     let secret = utils::bytes_to_string(&secret);
     let response = create_response(&secret, &challenge)?;
 
-    let response = if let Some(response) = send_token_request(TokenRequest {
+    let response = if let Ok(response) = send_token_request(TokenRequest {
         amount,
         method: Authentication::NfcSecret {
             id: card_id,

@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::http_client::*;
-use crate::{ApplicationContext, ApplicationState, Message, env};
+use crate::{env, ApplicationContext, ApplicationState, Message};
 
 pub struct QrScanner {
     path: String,
@@ -155,16 +155,16 @@ impl QrScanner {
         let req = IdentificationRequest::Barcode {
             code: code.to_owned(),
         };
-        if let Some(res) = send_identify(req) {
+        if let Ok(res) = send_identify(req) {
             match res {
                 IdentificationResponse::Account { account } => {
-                    if self.sender.send(Message::Account { account }).is_err() {
-                        // TODO Error
+                    if self.sender.send(Message::Account { account }).is_ok() {
+                        return;
                     }
                 }
                 IdentificationResponse::Product { product } => {
-                    if self.sender.send(Message::Product { product }).is_err() {
-                        // TODO Error
+                    if self.sender.send(Message::Product { product }).is_ok() {
+                        return;
                     }
                 }
                 IdentificationResponse::NotFound => {
@@ -173,15 +173,19 @@ impl QrScanner {
                         .send(Message::QrCode {
                             code: code.to_owned(),
                         })
-                        .is_err()
+                        .is_ok()
                     {
-                        // TODO Error
+                        return;
                     }
                 }
                 _ => {
                     // Unexpected response
                 }
             }
+        }
+
+        if self.sender.send(Message::Error).is_err() {
+            // TODO Error
         }
     }
 
@@ -192,12 +196,15 @@ impl QrScanner {
                 code: code.to_owned(),
             },
         };
-        if let Some(res) = send_token_request(req) {
-            if let TokenResponse::Authorized { token } = res {
-                if self.sender.send(Message::PaymentToken { token }).is_err() {
-                    // TODO Error
-                }
+
+        if let Ok(TokenResponse::Authorized { token }) = send_token_request(req) {
+            if self.sender.send(Message::PaymentToken { token }).is_ok() {
+                return;
             }
+        }
+
+        if self.sender.send(Message::Error).is_err() {
+            // TODO Error
         }
     }
 
@@ -219,7 +226,9 @@ impl QrScanner {
     }
 
     pub fn find_files() -> Vec<String> {
-        env::QR_SCANNER.as_str().split(';')
+        env::QR_SCANNER
+            .as_str()
+            .split(';')
             .map(|s| s.trim().to_owned())
             .collect()
     }

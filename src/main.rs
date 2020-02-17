@@ -5,15 +5,19 @@
 extern crate hex_literal;
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate serde_json;
 
+pub mod env;
+pub mod errors;
 mod http_client;
 mod nfc;
 mod nfc_module;
 mod proxy;
 mod qr_module;
 mod sse;
-pub mod env;
 
+pub use crate::errors::*;
 use serde_json::Value;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
@@ -45,6 +49,7 @@ pub enum Message {
         token: String,
     },
     Timeout,
+    Error,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -77,6 +82,11 @@ impl ApplicationContext {
         println!("Request nfc reauthentication");
         self.state_date = SystemTime::now();
         self.state = ApplicationState::Reauthenticate;
+    }
+    pub fn request_cancel(&mut self) {
+        println!("Request cancel");
+        self.state_date = SystemTime::now();
+        self.state = ApplicationState::Default;
     }
     pub fn get_state(&self) -> ApplicationState {
         self.state
@@ -146,11 +156,10 @@ fn main() {
 
     loop {
         if let Ok(message) = receiver.recv() {
-            // println!();
-            // println!("{:#?}", data);
-
             if let Ok(s) = serde_json::to_string(&message) {
                 broadcaster.lock().unwrap().send(&s);
+            } else {
+                println!("Failed to serialize data: {:?}", message);
             }
         } else {
             println!("Error while receiving code!")

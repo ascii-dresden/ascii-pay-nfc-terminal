@@ -1,11 +1,11 @@
 use std::sync::{Arc, Mutex};
 
 use crate::sse::{self, Broadcaster};
-use crate::{ApplicationContext, env};
+use crate::{env, ApplicationContext};
 use actix_rt::System;
 use actix_web::client::Client;
-use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web::http::header::HeaderValue;
+use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 
 use std::thread;
 
@@ -21,9 +21,7 @@ async fn forward(
         new_url.push_str(query);
     }
 
-    let forwarded_req = client
-        .request_from(new_url, req.head())
-        .no_decompress();
+    let forwarded_req = client.request_from(new_url, req.head()).no_decompress();
     let forwarded_req = if let Some(addr) = req.head().peer_addr {
         forwarded_req.header("x-forwarded-for", format!("{}", addr.ip()))
     } else {
@@ -37,6 +35,7 @@ async fn forward(
     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection#Directives
     for (header_name, header_value) in res.headers().iter().filter(|(h, _)| *h != "connection") {
         if header_name == "set-cookie" {
+            // Rewrite set-cookie header for proxy
             let value = header_value.to_str().unwrap();
 
             let local_domain = format!("Domain={}", env::LOCAL_DOMAIN.as_str());
@@ -80,6 +79,16 @@ async fn request_reauthentication(
     Ok(HttpResponse::Ok().finish())
 }
 
+async fn request_cancel(
+    context: web::Data<Arc<Mutex<ApplicationContext>>>,
+) -> Result<HttpResponse, Error> {
+    let mut c = context.lock().unwrap();
+
+    c.request_cancel();
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 pub fn start(broadcaster: Arc<Mutex<Broadcaster>>, context: Arc<Mutex<ApplicationContext>>) {
     thread::spawn(move || {
         let mut sys = System::new("sse");
@@ -91,17 +100,23 @@ pub fn start(broadcaster: Arc<Mutex<Broadcaster>>, context: Arc<Mutex<Applicatio
         let srv = HttpServer::new(move || {
             App::new()
                 .data(Client::new())
-                // .data(forward_url.clone())
                 .data(broadcaster.clone())
                 .data(context.clone())
                 .wrap(middleware::Logger::default())
-                .service(web::resource("/events").to(sse::new_client))
                 .service(
-                    web::resource("/request-payment-token")
-                        .route(web::post().to(request_payment_token)),
-                )
-                .service(
-                    web::resource("/reauthenticate").route(web::get().to(request_reauthentication)),
+                    web::scope("/proxy")
+                        .service(web::resource("/events").to(sse::new_client))
+                        .service(
+                            web::resource("/request-payment-token")
+                                .route(web::post().to(request_payment_token)),
+                        )
+                        .service(
+                            web::resource("/reauthenticate-nfc")
+                                .route(web::get().to(request_reauthentication)),
+                        )
+                        .service(
+                            web::resource("/cancel").route(web::get().to(request_reauthentication)),
+                        ),
                 )
                 .default_service(web::route().to(forward))
         })

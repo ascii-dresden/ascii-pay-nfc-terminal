@@ -16,7 +16,7 @@ pub fn handle(sender: &Sender<Message>, card: &NfcCard) -> NfcResult<()> {
         utils::bytes_to_string(&get_id(card)?),
     );
 
-    let response = if let Some(response) = send_identify(IdentificationRequest::Nfc {
+    let response = if let Ok(response) = send_identify(IdentificationRequest::Nfc {
         id: card_id.clone(),
     }) {
         response
@@ -63,25 +63,20 @@ pub fn handle_payment(sender: &Sender<Message>, card: &NfcCard, amount: i32) -> 
         utils::bytes_to_string(&get_id(card)?),
     );
 
-    let response = if let Some(response) = send_token_request(TokenRequest {
+    let response = if let Ok(response) = send_token_request(TokenRequest {
         amount,
-        method: Authentication::Nfc {
-            id: card_id.clone(),
-        },
+        method: Authentication::Nfc { id: card_id },
     }) {
         response
     } else {
         return Ok(());
     };
 
-    match response {
-        TokenResponse::Authorized { token } => {
-            if sender.send(Message::PaymentToken { token }).is_err() {
-                // TODO Error
-            }
+    if let TokenResponse::Authorized { token } = response {
+        if sender.send(Message::PaymentToken { token }).is_err() {
+            // TODO Error
         }
-        _ => {}
-    };
+    }
 
     Ok(())
 }

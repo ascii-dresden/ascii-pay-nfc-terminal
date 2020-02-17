@@ -9,6 +9,7 @@ use futures::{Stream, StreamExt};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::time::{interval_at, Instant};
 
+/// HTTP handler for new clients.
 pub async fn new_client(broadcaster: Data<Arc<Mutex<Broadcaster>>>) -> impl Responder {
     let rx = broadcaster.lock().unwrap().new_client();
 
@@ -25,16 +26,14 @@ pub struct Broadcaster {
 }
 
 impl Broadcaster {
+    /// Return a new thread safe broadcast object
     pub fn create() -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Broadcaster::new()))
-    }
-
-    fn new() -> Self {
-        Broadcaster {
+        Arc::new(Mutex::new(Broadcaster {
             clients: Vec::new(),
-        }
+        }))
     }
 
+    /// Create a actix threat that performs a ping at a fixed interval.
     pub fn spawn_ping(me: Arc<Mutex<Self>>) {
         actix_rt::spawn(async move {
             let mut task = interval_at(Instant::now(), Duration::from_secs(10));
@@ -44,6 +43,7 @@ impl Broadcaster {
         })
     }
 
+    /// Remove all clients that are no longer listening.
     fn remove_stale_clients(&mut self) {
         let mut ok_clients = Vec::new();
         for client in self.clients.iter() {
@@ -56,6 +56,7 @@ impl Broadcaster {
         self.clients = ok_clients;
     }
 
+    /// Connect a new client.
     fn new_client(&mut self) -> Client {
         let (tx, rx) = channel(100);
 
@@ -67,6 +68,7 @@ impl Broadcaster {
         Client(rx)
     }
 
+    /// Send the `msg` to all connected clients.
     pub fn send(&self, msg: &str) {
         let msg = Bytes::from(["data: ", msg, "\n\n"].concat());
 

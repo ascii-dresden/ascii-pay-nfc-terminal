@@ -4,7 +4,7 @@ use serde_json::Value;
 use std::marker::Sized;
 use std::time::Duration;
 
-use crate::env;
+use crate::{env, ServiceResult};
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "type")]
@@ -46,47 +46,6 @@ pub enum IdentificationResponse {
     NotFound,
 }
 
-pub fn send_request<T, R>(url: &str, body: T) -> Option<R>
-where
-    T: Serialize + Sized,
-    R: DeserializeOwned,
-{
-    let client = reqwest::blocking::Client::new();
-
-    let response = client
-        .post(url)
-        .timeout(Duration::from_secs(10))
-        .json(&body)
-        .send()
-        .ok()?;
-
-    response.json().ok()
-}
-
-pub fn send_identify(body: IdentificationRequest) -> Option<IdentificationResponse> {
-    let client = reqwest::blocking::Client::new();
-
-    let url = format!("{}/api/v1/identify", env::BASE_URL.as_str());
-
-    let response = client
-        .post(&url)
-        .timeout(Duration::from_secs(10))
-        .json(&body)
-        .send()
-        .ok()?;
-
-    if response.status().as_u16() == 404 {
-        return Some(IdentificationResponse::NotFound);
-    }
-
-    response.json().ok()
-}
-
-pub fn send_token_request(body: TokenRequest) -> Option<TokenResponse> {
-    let url = format!("{}/api/v1/transaction/token", env::BASE_URL.as_str());
-    send_request(&url, body)
-}
-
 #[derive(Debug, Serialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "kebab-case")]
@@ -122,4 +81,43 @@ pub enum TokenResponse {
         key: String,
         challenge: String,
     },
+}
+
+pub fn send_request<T, R>(url: &str, body: T) -> ServiceResult<R>
+where
+    T: Serialize + Sized,
+    R: DeserializeOwned,
+{
+    let client = reqwest::blocking::Client::new();
+
+    let response = client
+        .post(url)
+        .timeout(Duration::from_secs(10))
+        .json(&body)
+        .send()?;
+
+    Ok(response.json()?)
+}
+
+pub fn send_identify(body: IdentificationRequest) -> ServiceResult<IdentificationResponse> {
+    let client = reqwest::blocking::Client::new();
+
+    let url = format!("{}/api/v1/identify", env::BASE_URL.as_str());
+
+    let response = client
+        .post(&url)
+        .timeout(Duration::from_secs(10))
+        .json(&body)
+        .send()?;
+
+    if response.status().as_u16() == 404 {
+        return Ok(IdentificationResponse::NotFound);
+    }
+
+    Ok(response.json()?)
+}
+
+pub fn send_token_request(body: TokenRequest) -> ServiceResult<TokenResponse> {
+    let url = format!("{}/api/v1/transaction/token", env::BASE_URL.as_str());
+    send_request(&url, body)
 }
