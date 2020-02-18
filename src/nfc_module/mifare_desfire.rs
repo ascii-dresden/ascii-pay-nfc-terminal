@@ -1,7 +1,7 @@
 use std::sync::mpsc::Sender;
 
 use crate::http_client::*;
-use crate::nfc::{mifare_desfire, utils, MiFareDESFire, NfcResult};
+use crate::nfc::{mifare_desfire, utils, MiFareDESFire, NfcError, NfcResult};
 use crate::Message;
 
 const DEFAULT_KEY: [u8; 16] = hex!("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
@@ -19,9 +19,37 @@ fn is_writeable(card: &MiFareDESFire) -> NfcResult<bool> {
     Ok(true)
 }
 
-fn create_response(_secret: &str, challenge: &str) -> NfcResult<String> {
-    // TODO
-    Ok(challenge.to_owned())
+/// Calculate CRC as descipted in ISO 14443.
+#[allow(non_snake_case)]
+fn crc_checksum(value: &[u8]) -> [u8; 2] {
+    let mut wCrc = 0x6363;
+    for b in value {
+        let br = ((wCrc & 0xFF) as u8) ^ b;
+        let br = br ^ (br << 4);
+        let br_long = br as u32;
+        wCrc = (wCrc >> 8) ^ (br_long << 8) ^ (br_long << 3) ^ (br_long >> 4);
+    }
+
+    [((wCrc) & 0xFF) as u8, ((wCrc >> 8) & 0xFF) as u8]
+}
+
+/// Create the response for the given challenge and card secret.
+/// The challenge is base64 encoded.
+///
+/// To create the response each byte of the challenge is xor-ed with the secret.
+/// If the challenge is longer than the secret, than the secret will repeat itself.
+///
+/// The result is base64 encoded.
+fn create_response(secret: &[u8], challenge: &str) -> NfcResult<String> {
+    let challenge = base64::decode(challenge).map_err(|_| NfcError::ByteParseError)?;
+
+    let mut response: Vec<u8> = Vec::with_capacity(challenge.len());
+
+    for (i, c) in challenge.iter().enumerate() {
+        response.push(c | secret[i % secret.len()]);
+    }
+
+    Ok(base64::encode(&response))
 }
 
 fn read_mensa_data(card: &MiFareDESFire) -> NfcResult<(i32, i32)> {
@@ -302,7 +330,6 @@ pub fn handle(sender: &Sender<Message>, card: &MiFareDESFire) -> NfcResult<()> {
     let session_key = card.authenticate(0, &key)?;
 
     let secret = card.read_data(0, 0, 0, mifare_desfire::Encryption::Encrypted(session_key))?;
-    let secret = utils::bytes_to_string(&secret);
     let response = create_response(&secret, &challenge)?;
 
     let response = if let Ok(response) = send_identify(IdentificationRequest::NfcSecret {
@@ -383,7 +410,6 @@ pub fn handle_payment(
     let session_key = card.authenticate(0, &key)?;
 
     let secret = card.read_data(0, 0, 0, mifare_desfire::Encryption::Encrypted(session_key))?;
-    let secret = utils::bytes_to_string(&secret);
     let response = create_response(&secret, &challenge)?;
 
     let response = if let Ok(response) = send_token_request(TokenRequest {
