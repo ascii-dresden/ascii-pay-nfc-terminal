@@ -2,6 +2,7 @@ use std::sync::mpsc::Sender;
 
 use crate::http_client::*;
 use crate::nfc::{utils, NfcCard, NfcResult};
+use crate::utils::CheckedSender;
 use crate::Message;
 
 fn get_id(card: &NfcCard) -> NfcResult<Vec<u8>> {
@@ -26,30 +27,19 @@ pub fn handle(sender: &Sender<Message>, card: &NfcCard) -> NfcResult<()> {
 
     match response {
         IdentificationResponse::Account { account } => {
-            if sender.send(Message::Account { account }).is_err() {
-                // TODO Error
-            }
+            sender.send_checked(Message::Account { account });
         }
         IdentificationResponse::Product { product } => {
-            if sender.send(Message::Product { product }).is_err() {
-                // TODO Error
-            }
+            sender.send_checked(Message::Product { product })
         }
-        IdentificationResponse::NotFound => {
-            if sender
-                .send(Message::NfcCard {
-                    id: card_id,
-                    name: super::identify_atr(&atr)
-                        .get(0)
-                        .cloned()
-                        .unwrap_or_else(|| "".to_owned()),
-                    writeable: false,
-                })
-                .is_err()
-            {
-                // TODO Error
-            }
-        }
+        IdentificationResponse::NotFound => sender.send_checked(Message::NfcCard {
+            id: card_id,
+            name: super::identify_atr(&atr)
+                .get(0)
+                .cloned()
+                .unwrap_or_else(|| "".to_owned()),
+            writeable: false,
+        }),
         _ => {}
     };
 
@@ -73,9 +63,7 @@ pub fn handle_payment(sender: &Sender<Message>, card: &NfcCard, amount: i32) -> 
     };
 
     if let TokenResponse::Authorized { token } = response {
-        if sender.send(Message::PaymentToken { token }).is_err() {
-            // TODO Error
-        }
+        sender.send_checked(Message::PaymentToken { token })
     }
 
     Ok(())

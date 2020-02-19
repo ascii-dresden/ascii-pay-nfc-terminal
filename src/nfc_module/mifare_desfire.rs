@@ -2,6 +2,7 @@ use std::sync::mpsc::Sender;
 
 use crate::http_client::*;
 use crate::nfc::{mifare_desfire, utils, MiFareDESFire, NfcError, NfcResult};
+use crate::utils::CheckedSender;
 use crate::Message;
 
 const DEFAULT_KEY: [u8; 16] = hex!("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
@@ -261,32 +262,23 @@ pub fn handle(sender: &Sender<Message>, card: &MiFareDESFire) -> NfcResult<()> {
 
     let (_, key, challenge) = match response {
         IdentificationResponse::Account { account } => {
-            if sender.send(Message::Account { account }).is_err() {
-                // TODO Error
-            }
+            sender.send_checked(Message::Account { account });
             return Ok(());
         }
         IdentificationResponse::Product { product } => {
-            if sender.send(Message::Product { product }).is_err() {
-                // TODO Error
-            }
+            sender.send_checked(Message::Product { product });
             return Ok(());
         }
         IdentificationResponse::NotFound => {
             let writeable = is_writeable(&card).unwrap_or(false);
-            if sender
-                .send(Message::NfcCard {
-                    id: card_id,
-                    name: super::identify_atr(&atr)
-                        .get(0)
-                        .cloned()
-                        .unwrap_or_else(|| "".to_owned()),
-                    writeable,
-                })
-                .is_err()
-            {
-                // TODO Error
-            }
+            sender.send_checked(Message::NfcCard {
+                id: card_id,
+                name: super::identify_atr(&atr)
+                    .get(0)
+                    .cloned()
+                    .unwrap_or_else(|| "".to_owned()),
+                writeable,
+            });
             return Ok(());
         }
         IdentificationResponse::AuthenticationNeeded { id, key, challenge } => {
@@ -352,14 +344,10 @@ pub fn handle(sender: &Sender<Message>, card: &MiFareDESFire) -> NfcResult<()> {
                 }
             }
 
-            if sender.send(Message::Account { account }).is_err() {
-                // TODO Error
-            }
+            sender.send_checked(Message::Account { account })
         }
         IdentificationResponse::Product { product } => {
-            if sender.send(Message::Product { product }).is_err() {
-                // TODO Error
-            }
+            sender.send_checked(Message::Product { product })
         }
         _ => {}
     };
@@ -391,9 +379,7 @@ pub fn handle_payment(
 
     let (_, key, challenge) = match response {
         TokenResponse::Authorized { token } => {
-            if sender.send(Message::PaymentToken { token }).is_err() {
-                // TODO Error
-            }
+            sender.send_checked(Message::PaymentToken { token });
             return Ok(());
         }
         TokenResponse::AuthenticationNeeded { id, key, challenge } => {
@@ -426,9 +412,7 @@ pub fn handle_payment(
     };
 
     if let TokenResponse::Authorized { token } = response {
-        if sender.send(Message::PaymentToken { token }).is_err() {
-            // TODO Error
-        }
+        sender.send_checked(Message::PaymentToken { token })
     };
 
     Ok(())

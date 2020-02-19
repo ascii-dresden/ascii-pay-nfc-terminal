@@ -8,6 +8,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::nfc::{utils, MiFareDESFire, NfcCard};
+use crate::utils::CheckedSender;
 use crate::{ApplicationContext, ApplicationState, Message};
 
 pub fn identify_atr(atr: &[u8]) -> Vec<String> {
@@ -52,8 +53,8 @@ fn handle_card(sender: &Sender<Message>, card: NfcCard) -> NfcCard {
             println!("Insert 'mifare desfire' card");
             let card = MiFareDESFire::new(card);
 
-            if super::mifare_desfire::handle(sender, &card).is_err() {
-                // TODO error
+            if let Err(e) = super::mifare_desfire::handle(sender, &card) {
+                eprintln!("Error handling card: {:#?}", e);
             }
 
             card.into()
@@ -61,16 +62,16 @@ fn handle_card(sender: &Sender<Message>, card: NfcCard) -> NfcCard {
         // mifare classic
         b"\x3B\x8F\x80\x01\x80\x4F\x0C\xA0\x00\x00\x03\x06\x03\x00\x01\x00\x00\x00\x00\x6A" => {
             println!("Insert 'mifare classic' card");
-            if super::mifare_classic::handle(sender, &card).is_err() {
-                // TODO error
+            if let Err(e) = super::mifare_classic::handle(sender, &card) {
+                eprintln!("Error handling card: {:#?}", e);
             }
             card
         }
         // Yubikey Neo
         b"\x3B\x8C\x80\x01\x59\x75\x62\x69\x6B\x65\x79\x4E\x45\x4F\x72\x33\x58" => {
             println!("Insert 'Yubikey Neo' card");
-            if super::mifare_classic::handle(sender, &card).is_err() {
-                // TODO error
+            if let Err(e) = super::mifare_classic::handle(sender, &card) {
+                eprintln!("Error handling card: {:#?}", e);
             }
             card
         }
@@ -99,30 +100,46 @@ fn handle_payment_card(sender: &Sender<Message>, card: NfcCard, amount: i32) -> 
     match atr.as_slice() {
         // mifare desfire
         b"\x3B\x81\x80\x01\x80\x80" => {
+            println!("Payment with 'mifare desfire' card");
             let card = MiFareDESFire::new(card);
 
-            if super::mifare_desfire::handle_payment(sender, &card, amount).is_err() {
-                // TODO error
+            if let Err(e) = super::mifare_desfire::handle_payment(sender, &card, amount) {
+                eprintln!("Error handling card for payment: {:#?}", e);
             }
 
             card.into()
         }
         // mifare classic
         b"\x3B\x8F\x80\x01\x80\x4F\x0C\xA0\x00\x00\x03\x06\x03\x00\x01\x00\x00\x00\x00\x6A" => {
-            if super::mifare_classic::handle_payment(sender, &card, amount).is_err() {
-                // TODO error
+            println!("Payment with 'mifare classic' card");
+            if let Err(e) = super::mifare_classic::handle_payment(sender, &card, amount) {
+                eprintln!("Error handling card for payment: {:#?}", e);
             }
             card
         }
         // Yubikey Neo
         b"\x3B\x8C\x80\x01\x59\x75\x62\x69\x6B\x65\x79\x4E\x45\x4F\x72\x33\x58" => {
-            if super::mifare_classic::handle_payment(sender, &card, amount).is_err() {
-                // TODO error
+            println!("Payment with 'yubikey neo' card");
+            if let Err(e) = super::mifare_classic::handle_payment(sender, &card, amount) {
+                eprintln!("Error handling card for payment: {:#?}", e);
             }
             card
         }
         _ => {
-            println!("Unsupported ATR: {}", utils::bytes_to_string(&atr));
+            println!(
+                "Payment with unsupported card: {}",
+                utils::bytes_to_string(&atr)
+            );
+
+            let mut ident = identify_atr(&atr);
+            if !ident.is_empty() {
+                println!("Identification: {}", ident.remove(0));
+
+                for line in ident {
+                    println!("    {}", line);
+                }
+            }
+
             card
         }
     }
@@ -201,9 +218,7 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
                             if current_cards.contains_key(&name) {
                                 current_cards.remove(&name);
                                 println!("Remove nfc card");
-                                if sender.send(Message::RemoveNfcCard).is_err() {
-                                    // TODO error
-                                }
+                                sender.send_checked(Message::RemoveNfcCard);
                             }
                         }
                     }
@@ -214,9 +229,7 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
             let mut c = context.lock().expect("Deadlock on ApplicationContext");
             let state = c.get_state();
             match state {
-                ApplicationState::Default => {
-                    // Nothing todo
-                }
+                ApplicationState::Default => {}
                 ApplicationState::Reauthenticate => {
                     c.consume_state();
 

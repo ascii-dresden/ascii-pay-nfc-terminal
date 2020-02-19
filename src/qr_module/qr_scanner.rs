@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::http_client::*;
+use crate::utils::CheckedSender;
 use crate::{env, ApplicationContext, ApplicationState, Message};
 
 pub struct QrScanner {
@@ -140,14 +141,9 @@ impl QrScanner {
 
         self.communicate_identify(code);
 
-        match state {
-            ApplicationState::Default | ApplicationState::Reauthenticate => {
-                // Nothing todo
-            }
-            ApplicationState::Payment { amount, .. } => {
-                c.consume_state();
-                self.communicate_payment(code, amount);
-            }
+        if let ApplicationState::Payment { amount, .. } = state {
+            c.consume_state();
+            self.communicate_payment(code, amount);
         }
     }
 
@@ -184,9 +180,7 @@ impl QrScanner {
             }
         }
 
-        if self.sender.send(Message::Error).is_err() {
-            // TODO Error
-        }
+        self.sender.send_checked(Message::Error);
     }
 
     fn communicate_payment(&self, code: &str, amount: i32) {
@@ -203,9 +197,7 @@ impl QrScanner {
             }
         }
 
-        if self.sender.send(Message::Error).is_err() {
-            // TODO Error
-        }
+        self.sender.send_checked(Message::Error);
     }
 
     pub fn create(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>, file: &str) {

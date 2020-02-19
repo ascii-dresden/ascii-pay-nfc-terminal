@@ -16,6 +16,7 @@ mod nfc_module;
 mod proxy;
 mod qr_module;
 mod sse;
+pub mod utils;
 
 pub use crate::errors::*;
 use serde_json::Value;
