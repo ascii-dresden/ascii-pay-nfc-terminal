@@ -136,7 +136,7 @@ impl QrScanner {
     }
 
     fn communicate(&self, code: &str) {
-        let mut c = self.context.lock().unwrap();
+        let mut c = self.context.lock().expect("Mutex deadlock!");
         let state = c.get_state();
 
         self.communicate_identify(code);

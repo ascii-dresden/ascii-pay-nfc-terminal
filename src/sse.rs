@@ -11,14 +11,16 @@ use tokio::time::{interval_at, Instant};
 
 /// HTTP handler for new clients.
 pub async fn new_client(broadcaster: Data<Arc<Mutex<Broadcaster>>>) -> impl Responder {
-    let rx = broadcaster.lock().unwrap().new_client();
-
-    HttpResponse::Ok()
-        .header("Content-Type", "text/event-stream")
-        .header("Cache-Control", "no-cache")
-        .header("X-Accel-Buffering", "no")
-        .no_chunking()
-        .streaming(rx)
+    if let Some(rx) = broadcaster.lock().expect("Mutex deadlock!").new_client() {
+        HttpResponse::Ok()
+            .header("Content-Type", "text/event-stream")
+            .header("Cache-Control", "no-cache")
+            .header("X-Accel-Buffering", "no")
+            .no_chunking()
+            .streaming(rx)
+    } else {
+        HttpResponse::InternalServerError().finish()
+    }
 }
 
 pub struct Broadcaster {
@@ -38,7 +40,7 @@ impl Broadcaster {
         actix_rt::spawn(async move {
             let mut task = interval_at(Instant::now(), Duration::from_secs(10));
             while let Some(_) = task.next().await {
-                me.lock().unwrap().remove_stale_clients();
+                me.lock().expect("Mutex deadlock!").remove_stale_clients();
             }
         })
     }
@@ -57,15 +59,18 @@ impl Broadcaster {
     }
 
     /// Connect a new client.
-    fn new_client(&mut self) -> Client {
+    fn new_client(&mut self) -> Option<Client> {
         let (tx, rx) = channel(100);
 
-        tx.clone()
+        if let Err(_) = tx.clone()
             .try_send(Bytes::from("data: connected\n\n"))
-            .unwrap();
+            {
+                eprintln!("Cannot send connect message to sse client!");
+                return None
+            }
 
         self.clients.push(tx);
-        Client(rx)
+        Some(Client(rx))
     }
 
     /// Send the `msg` to all connected clients.

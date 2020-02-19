@@ -235,11 +235,12 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
 
                     // Request payment token for current card
                     if !current_cards.is_empty() {
-                        let key = current_cards.keys().next().unwrap().clone();
-
-                        let card = current_cards.remove(&key).unwrap();
-                        let card = handle_card(&sender, card);
-                        current_cards.insert(key, card);
+                        if let Some(key) = current_cards.keys().next().cloned() {
+                            if let Some(card) = current_cards.remove(&key) {
+                                let card = handle_card(&sender, card);
+                                current_cards.insert(key, card);
+                            }
+                        }
                     }
                 }
                 ApplicationState::Payment { amount, .. } => {
@@ -247,11 +248,12 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
                     if !current_cards.is_empty() {
                         c.consume_state();
 
-                        let key = current_cards.keys().next().unwrap().clone();
-
-                        let card = current_cards.remove(&key).unwrap();
-                        let card = handle_payment_card(&sender, card, amount);
-                        current_cards.insert(key, card);
+                        if let Some(key) = current_cards.keys().next().cloned() {
+                            if let Some(card) = current_cards.remove(&key) {
+                                let card = handle_payment_card(&sender, card, amount);
+                                current_cards.insert(key, card);
+                            }
+                        }
                     }
                 }
             }

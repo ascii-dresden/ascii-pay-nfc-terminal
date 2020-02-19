@@ -36,14 +36,14 @@ async fn forward(
     for (header_name, header_value) in res.headers().iter().filter(|(h, _)| *h != "connection") {
         if header_name == "set-cookie" {
             // Rewrite set-cookie header for proxy
-            let value = header_value.to_str().unwrap();
+            let value = header_value.to_str().unwrap_or("");
 
             let local_domain = format!("Domain={}", env::LOCAL_DOMAIN.as_str());
             let server_domain = format!("Domain={}", env::SERVER_DOMAIN.as_str());
 
             let value = value.replace(&server_domain, &local_domain);
             let value = value.replace(" Secure;", "");
-            let value = HeaderValue::from_str(&value).unwrap();
+            let value = HeaderValue::from_str(&value).unwrap_or(header_value.clone());
             client_resp.header(header_name.clone(), value);
         } else {
             client_resp.header(header_name.clone(), header_value.clone());
@@ -62,7 +62,7 @@ async fn request_payment_token(
     context: web::Data<Arc<Mutex<ApplicationContext>>>,
     request: web::Json<RequestPaymentToken>,
 ) -> Result<HttpResponse, Error> {
-    let mut c = context.lock().unwrap();
+    let mut c = context.lock().expect("Mutex deadlock!");
 
     c.request_payment(request.amount);
 
@@ -72,7 +72,7 @@ async fn request_payment_token(
 async fn request_reauthentication(
     context: web::Data<Arc<Mutex<ApplicationContext>>>,
 ) -> Result<HttpResponse, Error> {
-    let mut c = context.lock().unwrap();
+    let mut c = context.lock().expect("Mutex deadlock!");
 
     c.request_reauthentication();
 
@@ -82,7 +82,7 @@ async fn request_reauthentication(
 async fn request_cancel(
     context: web::Data<Arc<Mutex<ApplicationContext>>>,
 ) -> Result<HttpResponse, Error> {
-    let mut c = context.lock().unwrap();
+    let mut c = context.lock().expect("Mutex deadlock!");
 
     c.request_cancel();
 
@@ -121,7 +121,7 @@ pub fn start(broadcaster: Arc<Mutex<Broadcaster>>, context: Arc<Mutex<Applicatio
                 .default_service(web::route().to(forward))
         })
         .bind(address)
-        .unwrap()
+        .expect("Cannot start proxy server!")
         .system_exit()
         .run();
 

@@ -19,6 +19,7 @@ mod sse;
 pub mod utils;
 
 pub use crate::errors::*;
+use crate::utils::CheckedSender;
 use serde_json::Value;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
@@ -130,20 +131,20 @@ fn main() {
         let mut timeout = 30;
         loop {
             thread::sleep(Duration::from_secs(std::cmp::max(timeout, 1)));
-            let mut c = context.lock().unwrap();
+            let mut c = context.lock().expect("Mutex deadlock!");
             let time = c.get_state_date();
             let state = c.get_state();
 
             match state {
                 ApplicationState::Payment { .. } | ApplicationState::Reauthenticate => {
                     let now = SystemTime::now();
-                    let duration = now.duration_since(time).unwrap();
+                    let duration = now.duration_since(time).unwrap_or_else(|e| e.duration());
                     let secs = duration.as_secs();
                     if secs >= 30 {
                         c.consume_state();
                         println!("Request has timed out");
                         timeout = 30;
-                        sender.send(Message::Timeout).unwrap();
+                        sender.send_checked(Message::Timeout);
                     } else {
                         timeout = 30 - secs;
                     }
@@ -158,7 +159,7 @@ fn main() {
     loop {
         if let Ok(message) = receiver.recv() {
             if let Ok(s) = serde_json::to_string(&message) {
-                broadcaster.lock().unwrap().send(&s);
+                broadcaster.lock().expect("Mutex deadlock!").send(&s);
             } else {
                 println!("Failed to serialize data: {:?}", message);
             }

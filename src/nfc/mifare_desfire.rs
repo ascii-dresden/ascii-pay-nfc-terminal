@@ -38,16 +38,16 @@ impl Encryption {
                 if mac.len() < 4 {
                     return Err(NfcError::IntegrityError);
                 }
-                if vec.pop().unwrap() != mac[mac.len() - 1] {
+                if vec.pop().expect("Length check already passed") != mac[mac.len() - 1] {
                     return Err(NfcError::IntegrityError);
                 }
-                if vec.pop().unwrap() != mac[mac.len() - 2] {
+                if vec.pop().expect("Length check already passed") != mac[mac.len() - 2] {
                     return Err(NfcError::IntegrityError);
                 }
-                if vec.pop().unwrap() != mac[mac.len() - 3] {
+                if vec.pop().expect("Length check already passed") != mac[mac.len() - 3] {
                     return Err(NfcError::IntegrityError);
                 }
-                if vec.pop().unwrap() != mac[mac.len() - 4] {
+                if vec.pop().expect("Length check already passed") != mac[mac.len() - 4] {
                     return Err(NfcError::IntegrityError);
                 }
                 vec
