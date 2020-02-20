@@ -200,6 +200,21 @@ impl QrScanner {
         self.sender.send_checked(Message::Error);
     }
 
+    fn thread_loop(&mut self) {
+        if self.run() {
+            println!("Disconnect qr scanner {}!", self.path);
+        } else {
+            println!("Cannot connect to qr scanner {}!", self.path);
+        }
+
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            if self.run() {
+                println!("Disconnect qr scanner {}!", self.path);
+            }
+        }
+    }
+
     pub fn create(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>, file: &str) {
         let mut qr = QrScanner {
             path: file.to_owned(),
@@ -209,12 +224,7 @@ impl QrScanner {
             shift: false,
         };
 
-        thread::spawn(move || loop {
-            if qr.run() {
-                println!("Disconnect qr scanner {}!", qr.path);
-            }
-            std::thread::sleep(std::time::Duration::from_secs(1));
-        });
+        thread::spawn(move || qr.thread_loop());
     }
 
     pub fn find_files() -> Vec<String> {
