@@ -86,7 +86,7 @@ impl Encryption {
 
 pub const STATUS_ADDITIONAL_FRAME: u8 = 0xAF;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Status {
     OperationOk,
     NoChanges,
@@ -138,6 +138,28 @@ impl Status {
             0xF1 => Status::FileIntegrityError,
             _ => panic!("Unknown status code: {}", code),
         }
+    }
+    pub fn to_result_data<T>(self, value: T) -> NfcResult<T> {
+        let result = match self {
+            Status::OperationOk | Status::NoChanges | Status::AdditionalFrame => Ok(value),
+            Status::FileIntegrityError
+            | Status::PiccIntegrityError
+            | Status::ApplIntegrityError
+            | Status::IntegrityError => Err(NfcError::IntegrityError),
+            Status::PermissionDenied | Status::AuthenticationError => {
+                Err(NfcError::PermissionDenied)
+            }
+            _ => Err(NfcError::UnknownError),
+        };
+
+        if result.is_err() {
+            eprintln!("NFC commuincation error: {:?}", self);
+        }
+
+        result
+    }
+    pub fn to_result(self) -> NfcResult<()> {
+        self.to_result_data(())
     }
 }
 

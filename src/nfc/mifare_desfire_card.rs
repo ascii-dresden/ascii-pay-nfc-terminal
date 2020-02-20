@@ -52,13 +52,7 @@ impl MiFareDESFire {
             data = vec![];
         }
 
-        match status {
-            Status::OperationOk | Status::AdditionalFrame => Ok((status, data)),
-            _ => {
-                println!("Error code: {:?}", status);
-                Err(NfcError::PermissionDenied)
-            }
-        }
+        Ok((status, data))
     }
 
     /**
@@ -67,7 +61,8 @@ impl MiFareDESFire {
 
     #[allow(non_snake_case)]
     pub fn authenticate(&self, key_no: u8, key: &[u8]) -> NfcResult<Vec<u8>> {
-        let (_, ek_rndB) = self.transmit(0x0A, &[key_no])?;
+        let (status, ek_rndB) = self.transmit(0x0A, &[key_no])?;
+        status.to_result()?;
         let rndB = mifare_utils::tdes_decrypt(key, &ek_rndB)?;
 
         let mut rndBshifted: Vec<u8> = Vec::with_capacity(8);
@@ -86,7 +81,8 @@ impl MiFareDESFire {
 
         let dk_rndA_rndBshifted = mifare_utils::tdes_encrypt(key, &rndA_rndBshifted)?;
 
-        let (_, ek_rndAshifted_card) = self.transmit(0xAFu8, &dk_rndA_rndBshifted)?;
+        let (status, ek_rndAshifted_card) = self.transmit(0xAFu8, &dk_rndA_rndBshifted)?;
+        status.to_result()?;
         let rndAshifted_card = mifare_utils::tdes_decrypt(key, &ek_rndAshifted_card)?;
 
         if rndAshifted != rndAshifted_card {
@@ -110,13 +106,14 @@ impl MiFareDESFire {
         let data = [s[0], crc[0], crc[1], 0, 0, 0, 0, 0];
         let data = mifare_utils::tdes_encrypt(session_key, &data)?;
 
-        self.transmit(0x54, &data)?;
+        let (status, _) = self.transmit(0x54, &data)?;
 
-        Ok(())
+        status.to_result()
     }
 
     pub fn get_key_settings(&self) -> NfcResult<(KeySettings, u8)> {
-        let (_, result) = self.transmit(0x45, &[])?;
+        let (status, result) = self.transmit(0x45, &[])?;
+        status.to_result()?;
 
         let mut cursor = Cursor::new(result.as_slice());
         let key_settings = KeySettings::from_bytes(&mut cursor)?;
@@ -156,14 +153,14 @@ impl MiFareDESFire {
 
         bytes.insert(0, key_no);
 
-        self.transmit(0xC4, &bytes)?;
+        let (status, _) = self.transmit(0xC4, &bytes)?;
 
-        Ok(())
+        status.to_result()
     }
 
     pub fn get_key_version(&self, key_no: u8) -> NfcResult<u8> {
-        let (_, result) = self.transmit(0x64, &[key_no])?;
-        Ok(result[0])
+        let (status, result) = self.transmit(0x64, &[key_no])?;
+        status.to_result_data(result[0])
     }
 
     /**
@@ -176,25 +173,27 @@ impl MiFareDESFire {
         key_settings: KeySettings,
         num_of_keys: u8,
     ) -> NfcResult<()> {
-        self.transmit(
+        let (status, _) = self.transmit(
             0xCA,
             &[aid[0], aid[1], aid[2], key_settings.to_byte()?, num_of_keys],
         )?;
 
-        Ok(())
+        status.to_result()
     }
 
     pub fn delete_application(&self, aid: [u8; 3]) -> NfcResult<()> {
-        self.transmit(0xDA, &aid)?;
+        let (status, _) = self.transmit(0xDA, &aid)?;
 
-        Ok(())
+        status.to_result()
     }
 
     pub fn get_application_ids(&self) -> NfcResult<Vec<[u8; 3]>> {
         let (mut status, mut result) = self.transmit(0x6A, &[])?;
+        status.to_result()?;
         while status == Status::AdditionalFrame {
             let (s, r) = self.transmit(STATUS_ADDITIONAL_FRAME, &[])?;
             status = s;
+            status.to_result()?;
             result.extend(r);
         }
 
@@ -211,22 +210,24 @@ impl MiFareDESFire {
     }
 
     pub fn select_application(&self, aid: [u8; 3]) -> NfcResult<()> {
-        self.transmit(0x5A, &aid)?;
+        let (status, _) = self.transmit(0x5A, &aid)?;
 
-        Ok(())
+        status.to_result()
     }
 
     pub fn format_picc(&self) -> NfcResult<()> {
-        self.transmit(0xFC, &[])?;
+        let (status, _) = self.transmit(0xFC, &[])?;
 
-        Ok(())
+        status.to_result()
     }
 
     pub fn get_version(&self) -> NfcResult<Version> {
         let (mut status, mut result) = self.transmit(0x60, &[])?;
+        status.to_result()?;
         while status == Status::AdditionalFrame {
             let (s, r) = self.transmit(STATUS_ADDITIONAL_FRAME, &[])?;
             status = s;
+            status.to_result()?;
             result.extend(r);
         }
 
@@ -238,13 +239,15 @@ impl MiFareDESFire {
      */
 
     pub fn get_file_ids(&self) -> NfcResult<Vec<u8>> {
-        let (_, result) = self.transmit(0x6F, &[])?;
+        let (status, result) = self.transmit(0x6F, &[])?;
+        status.to_result()?;
 
         Ok(result)
     }
 
     pub fn get_file_settings(&self, file_no: u8) -> NfcResult<FileSettings> {
-        let (_, result) = self.transmit(0xF5, &[file_no])?;
+        let (status, result) = self.transmit(0xF5, &[file_no])?;
+        status.to_result()?;
 
         FileSettings::from_slice(&result)
     }
@@ -268,9 +271,9 @@ impl MiFareDESFire {
 
         bytes.insert(0, file_no);
 
-        self.transmit(0x5F, &bytes)?;
+        let (status, _) = self.transmit(0x5F, &bytes)?;
 
-        Ok(())
+        status.to_result()
     }
 
     pub fn create_std_data_file(
@@ -287,8 +290,9 @@ impl MiFareDESFire {
         access_rights.to_bytes(&mut bytes)?;
         bytes.write_u24::<LittleEndian>(file_size)?;
 
-        self.transmit(0xCD, &bytes)?;
-        Ok(())
+        let (status, _) = self.transmit(0xCD, &bytes)?;
+
+        status.to_result()
     }
 
     pub fn create_backup_data_file(
@@ -305,8 +309,9 @@ impl MiFareDESFire {
         access_rights.to_bytes(&mut bytes)?;
         bytes.write_u24::<LittleEndian>(file_size)?;
 
-        self.transmit(0xCB, &bytes)?;
-        Ok(())
+        let (status, _) = self.transmit(0xCB, &bytes)?;
+
+        status.to_result()
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -330,8 +335,9 @@ impl MiFareDESFire {
         bytes.write_u32::<LittleEndian>(limited_credit_value)?;
         bytes.write_u8(if limited_credit_enabled { 0x01 } else { 0x00 })?;
 
-        self.transmit(0xCC, &bytes)?;
-        Ok(())
+        let (status, _) = self.transmit(0xCC, &bytes)?;
+
+        status.to_result()
     }
 
     pub fn create_linear_record_file(
@@ -350,8 +356,9 @@ impl MiFareDESFire {
         bytes.write_u24::<LittleEndian>(record_size)?;
         bytes.write_u24::<LittleEndian>(max_no_of_keys)?;
 
-        self.transmit(0xC1, &bytes)?;
-        Ok(())
+        let (status, _) = self.transmit(0xC1, &bytes)?;
+
+        status.to_result()
     }
 
     pub fn create_cyclic_record_file(
@@ -370,8 +377,9 @@ impl MiFareDESFire {
         bytes.write_u24::<LittleEndian>(record_size)?;
         bytes.write_u24::<LittleEndian>(max_no_of_keys)?;
 
-        self.transmit(0xC0, &bytes)?;
-        Ok(())
+        let (status, _) = self.transmit(0xC0, &bytes)?;
+
+        status.to_result()
     }
 
     pub fn delete_file(&self, file_no: u8) -> NfcResult<()> {
@@ -379,8 +387,9 @@ impl MiFareDESFire {
 
         bytes.write_u8(file_no)?;
 
-        self.transmit(0xDF, &bytes)?;
-        Ok(())
+        let (status, _) = self.transmit(0xDF, &bytes)?;
+
+        status.to_result()
     }
 
     pub fn read_data(
@@ -397,9 +406,11 @@ impl MiFareDESFire {
         bytes.write_u24::<LittleEndian>(length)?;
 
         let (mut status, mut result) = self.transmit(0xBD, &bytes)?;
+        status.to_result()?;
         while status == Status::AdditionalFrame {
             let (s, r) = self.transmit(STATUS_ADDITIONAL_FRAME, &[])?;
             status = s;
+            status.to_result()?;
             result.extend(r);
         }
 
@@ -427,14 +438,16 @@ impl MiFareDESFire {
         offset += length;
 
         let (mut status, _) = self.transmit(0x3D, &bytes)?;
+        status.to_result()?;
         while status == Status::AdditionalFrame {
             let length = std::cmp::min(d.len() - offset, 59);
             if length == 0 {
                 break;
             }
             let (s, r) = self.transmit(STATUS_ADDITIONAL_FRAME, &d[offset..(offset + length)])?;
-            offset += length;
             status = s;
+            status.to_result()?;
+            offset += length;
         }
 
         Ok(())
@@ -445,7 +458,8 @@ impl MiFareDESFire {
 
         bytes.write_u8(file_no)?;
 
-        let (_, result) = self.transmit(0x6C, &bytes)?;
+        let (status, result) = self.transmit(0x6C, &bytes)?;
+        status.to_result()?;
 
         let result = encryption.decrypt(&result)?;
 
@@ -468,7 +482,7 @@ impl MiFareDESFire {
 
         let (status, _) = self.transmit(0x0C, &bytes)?;
 
-        Ok(())
+        status.to_result()
     }
 
     pub fn debit(&self, file_no: u8, value: u32, encryption: Encryption) -> NfcResult<()> {
@@ -482,9 +496,9 @@ impl MiFareDESFire {
 
         bytes.extend(&data);
 
-        let (_, _) = self.transmit(0xDC, &bytes)?;
+        let (status, _) = self.transmit(0xDC, &bytes)?;
 
-        Ok(())
+        status.to_result()
     }
 
     pub fn limited_credit(&self, file_no: u8, value: u32, encryption: Encryption) -> NfcResult<()> {
@@ -498,9 +512,9 @@ impl MiFareDESFire {
 
         bytes.extend(&data);
 
-        let (_, _) = self.transmit(0x1C, &bytes)?;
+        let (status, _) = self.transmit(0x1C, &bytes)?;
 
-        Ok(())
+        status.to_result()
     }
 
     pub fn write_record(
@@ -524,6 +538,7 @@ impl MiFareDESFire {
         offset += length;
 
         let (mut status, _) = self.transmit(0x3B, &bytes)?;
+        status.to_result()?;
         while status == Status::AdditionalFrame {
             let length = std::cmp::min(d.len() - offset, 59);
             if length == 0 {
@@ -532,6 +547,7 @@ impl MiFareDESFire {
             let (s, r) = self.transmit(STATUS_ADDITIONAL_FRAME, &d[offset..(offset + length)])?;
             offset += length;
             status = s;
+            status.to_result()?;
         }
 
         Ok(())
@@ -551,9 +567,11 @@ impl MiFareDESFire {
         bytes.write_u24::<LittleEndian>(length)?;
 
         let (mut status, mut result) = self.transmit(0xBB, &bytes)?;
+        status.to_result()?;
         while status == Status::AdditionalFrame {
             let (s, r) = self.transmit(STATUS_ADDITIONAL_FRAME, &[])?;
             status = s;
+            status.to_result()?;
             result.extend(r);
         }
 
@@ -565,21 +583,21 @@ impl MiFareDESFire {
 
         bytes.write_u8(file_no)?;
 
-        self.transmit(0xEB, &bytes)?;
+        let (status, _) = self.transmit(0xEB, &bytes)?;
 
-        Ok(())
+        status.to_result()
     }
 
     pub fn commit_transaction(&self) -> NfcResult<()> {
-        self.transmit(0xC7, &[])?;
+        let (status, _) = self.transmit(0xC7, &[])?;
 
-        Ok(())
+        status.to_result()
     }
 
     pub fn abort_transaction(&self) -> NfcResult<()> {
-        self.transmit(0xA7, &[])?;
+        let (status, _) = self.transmit(0xA7, &[])?;
 
-        Ok(())
+        status.to_result()
     }
 }
 
