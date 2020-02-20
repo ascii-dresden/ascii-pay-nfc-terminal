@@ -1,8 +1,8 @@
 use std::sync::mpsc::Sender;
 
-use crate::http_client::*;
 use crate::nfc::{utils, NfcCard, NfcResult};
 use crate::utils::CheckedSender;
+use crate::web::http_client::*;
 use crate::Message;
 
 fn get_id(card: &NfcCard) -> NfcResult<Vec<u8>> {

@@ -150,7 +150,7 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
         let ctx = if let Ok(ctx) = Context::establish(Scope::User) {
             ctx
         } else {
-            println!("Cannot connect to nfc service!");
+            eprintln!("Cannot connect to nfc service!");
             return;
         };
 

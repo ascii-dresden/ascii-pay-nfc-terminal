@@ -7,8 +7,8 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::http_client::*;
 use crate::utils::CheckedSender;
+use crate::web::http_client::*;
 use crate::{env, ApplicationContext, ApplicationState, Message};
 
 pub struct QrScanner {

@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crate::sse::{self, Broadcaster};
+use super::sse::{self, Broadcaster};
 use crate::{env, ApplicationContext};
 use actix_rt::System;
 use actix_web::client::Client;
@@ -43,7 +43,7 @@ async fn forward(
 
             let value = value.replace(&server_domain, &local_domain);
             let value = value.replace(" Secure;", "");
-            let value = HeaderValue::from_str(&value).unwrap_or(header_value.clone());
+            let value = HeaderValue::from_str(&value).unwrap_or_else(|_| header_value.clone());
             client_resp.header(header_name.clone(), value);
         } else {
             client_resp.header(header_name.clone(), header_value.clone());

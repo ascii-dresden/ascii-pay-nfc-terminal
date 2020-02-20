@@ -1,8 +1,8 @@
 use std::sync::mpsc::Sender;
 
-use crate::http_client::*;
 use crate::nfc::{mifare_desfire, utils, MiFareDESFire, NfcError, NfcResult};
 use crate::utils::CheckedSender;
+use crate::web::http_client::*;
 use crate::Message;
 
 const DEFAULT_KEY: [u8; 16] = hex!("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");

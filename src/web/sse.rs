@@ -62,12 +62,14 @@ impl Broadcaster {
     fn new_client(&mut self) -> Option<Client> {
         let (tx, rx) = channel(100);
 
-        if let Err(_) = tx.clone()
+        if tx
+            .clone()
             .try_send(Bytes::from("data: connected\n\n"))
-            {
-                eprintln!("Cannot send connect message to sse client!");
-                return None
-            }
+            .is_err()
+        {
+            eprintln!("Cannot send connect message to sse client!");
+            return None;
+        }
 
         self.clients.push(tx);
         Some(Client(rx))

@@ -10,13 +10,11 @@ extern crate serde_json;
 
 pub mod env;
 pub mod errors;
-mod http_client;
 mod nfc;
 mod nfc_module;
-mod proxy;
 mod qr_module;
-mod sse;
 pub mod utils;
+mod web;
 
 pub use crate::errors::*;
 use crate::utils::CheckedSender;
@@ -116,8 +114,7 @@ fn main() {
     let context = Arc::new(Mutex::new(ApplicationContext::new()));
 
     // Start sse server
-    let broadcaster = sse::Broadcaster::create();
-    proxy::start(broadcaster.clone(), context.clone());
+    let broadcaster = web::start(context.clone());
 
     let (sender, receiver) = channel::<Message>();
 
