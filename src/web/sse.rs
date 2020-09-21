@@ -16,7 +16,6 @@ pub async fn new_client(broadcaster: Data<Arc<Mutex<Broadcaster>>>) -> impl Resp
             .header("Content-Type", "text/event-stream")
             .header("Cache-Control", "no-cache")
             .header("X-Accel-Buffering", "no")
-            .no_chunking()
             .streaming(rx)
     } else {
         HttpResponse::InternalServerError().finish()

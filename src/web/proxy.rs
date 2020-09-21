@@ -5,6 +5,7 @@ use crate::{env, ApplicationContext};
 use actix_rt::System;
 use actix_web::client::Client;
 use actix_web::http::header::HeaderValue;
+use actix_cors::Cors;
 use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 
 use std::thread;
@@ -103,6 +104,9 @@ pub fn start(broadcaster: Arc<Mutex<Broadcaster>>, context: Arc<Mutex<Applicatio
                 .data(broadcaster.clone())
                 .data(context.clone())
                 .wrap(middleware::Logger::default())
+                .wrap(
+                    Cors::default()
+                )
                 .service(
                     web::scope("/proxy")
                         .service(web::resource("/events").to(sse::new_client))
