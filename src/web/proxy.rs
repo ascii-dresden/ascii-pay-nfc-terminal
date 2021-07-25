@@ -22,12 +22,14 @@ async fn forward(
         new_url.push_str(query);
     }
 
-    let forwarded_req = client.request_from(new_url, req.head()).no_decompress();
-    let forwarded_req = if let Some(addr) = req.head().peer_addr {
-        forwarded_req.header("x-forwarded-for", format!("{}", addr.ip()))
-    } else {
-        forwarded_req
-    };
+    let head = req.head();
+    let mut forwarded_req = client.request(head.method.clone(), new_url);
+    for (header_name, header_value) in head.headers.iter().filter(|(h, _)| *h != "host" && *h != "connection" && *h != "upgrade-insecure-requests") {
+        forwarded_req = forwarded_req.set_header_if_none(header_name.clone(), header_value.clone());
+    }
+    if let Some(addr) = req.head().peer_addr {
+        forwarded_req = forwarded_req.header("x-forwarded-for", format!("{}", addr.ip()))
+    }
 
     let mut res = forwarded_req.send_body(body).await.map_err(Error::from)?;
 
