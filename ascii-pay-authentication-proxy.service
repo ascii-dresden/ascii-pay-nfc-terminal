@@ -1,0 +1,12 @@
+[Unit]
+Description=ascii-pay-authentication-proxy
+
+[Service]
+Type=exec
+Restart=always
+User=pi
+ExecStart=/home/pi/projects/ascii-pay-authentication-proxy/target/release/ascii-pay-authentication-proxy
+WorkingDirectory=/home/pi/projects/ascii-pay-authentication-proxy
+
+[Install]
+WantedBy=multi-user.target
