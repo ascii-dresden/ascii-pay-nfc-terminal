@@ -16,6 +16,10 @@ pub async fn new_client(broadcaster: Data<Arc<Mutex<Broadcaster>>>) -> impl Resp
             .header("Content-Type", "text/event-stream")
             .header("Cache-Control", "no-cache")
             .header("X-Accel-Buffering", "no")
+            .header("Access-Control-Allow-Methods", "OPTIONS,GET,POST,PUT,DELETE")
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Access-Control-Expose-Headers", "Location")
+            .header("Access-Control-Allow-Headers", "Origin,X-Requested-With,Content-Type,Accept,Authorization,X-Custom-Header,Location")
             .streaming(rx)
     } else {
         HttpResponse::InternalServerError().finish()
