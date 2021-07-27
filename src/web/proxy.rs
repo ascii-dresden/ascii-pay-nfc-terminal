@@ -109,20 +109,17 @@ pub fn start(broadcaster: Arc<Mutex<Broadcaster>>, context: Arc<Mutex<Applicatio
                 .wrap(
                     Cors::default()
                 )
+                .service(web::resource("/events").to(sse::new_client))
                 .service(
-                    web::scope("/proxy")
-                        .service(web::resource("/events").to(sse::new_client))
-                        .service(
-                            web::resource("/request-payment-token")
-                                .route(web::post().to(request_payment_token)),
-                        )
-                        .service(
-                            web::resource("/reauthenticate-nfc")
-                                .route(web::get().to(request_reauthentication)),
-                        )
-                        .service(
-                            web::resource("/cancel").route(web::get().to(request_reauthentication)),
-                        ),
+                    web::resource("/request-payment-token")
+                        .route(web::post().to(request_payment_token)),
+                )
+                .service(
+                    web::resource("/reauthenticate-nfc")
+                        .route(web::get().to(request_reauthentication)),
+                )
+                .service(
+                    web::resource("/cancel").route(web::get().to(request_reauthentication)),
                 )
                 .default_service(web::route().to(forward))
         })

@@ -147,11 +147,12 @@ fn handle_payment_card(sender: &Sender<Message>, card: NfcCard, amount: i32) -> 
 
 pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
     thread::spawn(move || {
-        let ctx = if let Ok(ctx) = Context::establish(Scope::User) {
-            ctx
-        } else {
-            eprintln!("Cannot connect to nfc service!");
-            return;
+        let ctx = match Context::establish(Scope::User) {
+            Ok(ctx) => ctx,
+            Err(e) => {
+                eprintln!("Cannot connect to nfc service! ({:?})", e);
+                return;
+            }
         };
 
         let mut readers_buf = [0; 2048];
