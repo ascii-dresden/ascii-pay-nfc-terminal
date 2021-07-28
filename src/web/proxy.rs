@@ -31,7 +31,7 @@ async fn forward(
         forwarded_req = forwarded_req.header("x-forwarded-for", format!("{}", addr.ip()))
     }
 
-    let mut res = forwarded_req.send_body(body).await.map_err(Error::from)?;
+    let res = forwarded_req.send_body(body).await.map_err(Error::from)?;
 
     let mut client_resp = HttpResponse::build(res.status());
     // Remove `Connection` as per
@@ -52,8 +52,7 @@ async fn forward(
             client_resp.header(header_name.clone(), header_value.clone());
         }
     }
-
-    Ok(client_resp.body(res.body().await?))
+    Ok(client_resp.streaming(res))
 }
 
 #[derive(Debug, Deserialize)]
