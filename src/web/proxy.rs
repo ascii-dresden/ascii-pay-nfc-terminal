@@ -2,10 +2,10 @@ use std::sync::{Arc, Mutex};
 
 use super::sse::{self, Broadcaster};
 use crate::{env, ApplicationContext};
+use actix_cors::Cors;
 use actix_rt::System;
 use actix_web::client::Client;
 use actix_web::http::header::HeaderValue;
-use actix_cors::Cors;
 use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 
 use std::thread;
@@ -18,13 +18,17 @@ async fn forward(
     let mut new_url = env::BASE_URL.clone();
     new_url.push_str(req.uri().path());
     if let Some(query) = req.uri().query() {
-        new_url.push_str("?");
+        new_url.push('?');
         new_url.push_str(query);
     }
 
     let head = req.head();
     let mut forwarded_req = client.request(head.method.clone(), new_url);
-    for (header_name, header_value) in head.headers.iter().filter(|(h, _)| *h != "host" && *h != "connection" && *h != "upgrade-insecure-requests") {
+    for (header_name, header_value) in head
+        .headers
+        .iter()
+        .filter(|(h, _)| *h != "host" && *h != "connection" && *h != "upgrade-insecure-requests")
+    {
         forwarded_req = forwarded_req.set_header_if_none(header_name.clone(), header_value.clone());
     }
     if let Some(addr) = req.head().peer_addr {
@@ -105,9 +109,7 @@ pub fn start(broadcaster: Arc<Mutex<Broadcaster>>, context: Arc<Mutex<Applicatio
                 .data(broadcaster.clone())
                 .data(context.clone())
                 .wrap(middleware::Logger::default())
-                .wrap(
-                    Cors::default()
-                )
+                .wrap(Cors::default())
                 .service(web::resource("/events").to(sse::new_client))
                 .service(
                     web::resource("/request-payment-token")
@@ -117,9 +119,7 @@ pub fn start(broadcaster: Arc<Mutex<Broadcaster>>, context: Arc<Mutex<Applicatio
                     web::resource("/reauthenticate-nfc")
                         .route(web::get().to(request_reauthentication)),
                 )
-                .service(
-                    web::resource("/cancel").route(web::get().to(request_reauthentication)),
-                )
+                .service(web::resource("/cancel").route(web::get().to(request_reauthentication)))
                 .default_service(web::route().to(forward))
         })
         .bind(address)

@@ -482,6 +482,7 @@ impl Serializable for FileSettingsAccessRights {
 }
 
 #[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum FileSettings {
     DataFile {
         commuincation: FileSettingsCommunication,

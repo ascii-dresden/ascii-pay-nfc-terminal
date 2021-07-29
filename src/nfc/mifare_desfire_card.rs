@@ -12,6 +12,8 @@ pub struct MiFareDESFire {
 }
 
 impl MiFareDESFire {
+    
+    #[allow(clippy::match_like_matches_macro)]
     pub fn is_compatible(card: &NfcCard) -> bool {
         let atr = match card.get_atr() {
             Ok(atr) => atr,
@@ -601,8 +603,8 @@ impl MiFareDESFire {
     }
 }
 
-impl Into<NfcCard> for MiFareDESFire {
-    fn into(self) -> NfcCard {
-        self.card
+impl From<MiFareDESFire> for NfcCard {
+    fn from(card: MiFareDESFire) -> Self {
+        card.card
     }
 }

@@ -40,7 +40,7 @@ pub fn tdes_encrypt(key: &[u8], value: &[u8]) -> NfcResult<Vec<u8>> {
     let key = GenericArray::from_slice(&v);
 
     let iv = GenericArray::from_slice(&hex!("00 00 00 00 00 00 00 00"));
-    let cipher: Cbc<MiFareTdes, ZeroPadding> = Cbc::new(MiFareTdes::new(key), &iv);
+    let cipher: Cbc<MiFareTdes, ZeroPadding> = Cbc::new(MiFareTdes::new(key), iv);
 
     Ok(cipher.encrypt_vec(value))
 }
@@ -56,7 +56,7 @@ pub fn tdes_decrypt(key: &[u8], value: &[u8]) -> NfcResult<Vec<u8>> {
     let key = GenericArray::from_slice(&v);
 
     let iv = GenericArray::from_slice(&hex!("00 00 00 00 00 00 00 00"));
-    let cipher: Cbc<MiFareTdes, ZeroPadding> = Cbc::new(MiFareTdes::new(key), &iv);
+    let cipher: Cbc<MiFareTdes, ZeroPadding> = Cbc::new(MiFareTdes::new(key), iv);
 
     Ok(cipher.decrypt_vec(value)?)
 }
@@ -72,7 +72,7 @@ pub fn mac(key: &[u8], value: &[u8]) -> NfcResult<[u8; 4]> {
     let key = GenericArray::from_slice(&v);
 
     let iv = GenericArray::from_slice(&hex!("00 00 00 00 00 00 00 00"));
-    let cipher: Cbc<TdesEde2, ZeroPadding> = Cbc::new(TdesEde2::new(key), &iv);
+    let cipher: Cbc<TdesEde2, ZeroPadding> = Cbc::new(TdesEde2::new(key), iv);
 
     let encrypted = cipher.encrypt_vec(value);
 

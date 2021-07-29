@@ -39,6 +39,17 @@ pub fn bytes_to_string(bytes: &[u8]) -> String {
         .join(" ")
 }
 
+pub fn bytes_to_bytestring(bytes: &[u8]) -> String {
+    format!(
+        "b\"{}\"",
+        bytes
+            .iter()
+            .map(|x| format!("{:02X}", x))
+            .collect::<Vec<String>>()
+            .join("\\x")
+    )
+}
+
 pub fn str_to_bytes(s: &str) -> Vec<u8> {
     s.split(' ')
         .map(|x| u8::from_str_radix(x, 16).unwrap_or(0))

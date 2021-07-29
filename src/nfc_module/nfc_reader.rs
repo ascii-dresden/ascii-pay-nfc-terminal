@@ -7,7 +7,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use crate::nfc::{utils, MiFareDESFire, NfcCard};
+use crate::nfc::{utils, NfcCard};
+use crate::nfc_module::{get_nfc_handler, NfcCardHandler};
 use crate::utils::CheckedSender;
 use crate::{ApplicationContext, ApplicationState, Message};
 
@@ -22,127 +23,19 @@ pub fn identify_atr(atr: &[u8]) -> Vec<String> {
     let reader = BufReader::new(file);
 
     let mut found = false;
-    for line in reader.lines() {
-        if let Ok(line) = line {
-            if found {
-                if line.starts_with('\t') {
-                    result.push(line.trim().to_owned());
-                } else {
-                    found = false;
-                }
+    for line in reader.lines().flatten() {
+        if found {
+            if line.starts_with('\t') {
+                result.push(line.trim().to_owned());
             } else {
-                found = line.contains(&atr_str);
+                found = false;
             }
+        } else {
+            found = line.contains(&atr_str);
         }
     }
 
     result
-}
-
-fn handle_card(sender: &Sender<Message>, card: NfcCard) -> NfcCard {
-    let atr = match card.get_atr() {
-        Ok(atr) => atr,
-        Err(_) => return card,
-    };
-
-    identify_atr(&atr);
-
-    match atr.as_slice() {
-        // mifare desfire
-        b"\x3B\x81\x80\x01\x80\x80" => {
-            println!("Insert 'mifare desfire' card");
-            let card = MiFareDESFire::new(card);
-
-            if let Err(e) = super::mifare_desfire::handle(sender, &card) {
-                eprintln!("Error handling card: {:#?}", e);
-            }
-
-            card.into()
-        }
-        // mifare classic
-        b"\x3B\x8F\x80\x01\x80\x4F\x0C\xA0\x00\x00\x03\x06\x03\x00\x01\x00\x00\x00\x00\x6A" => {
-            println!("Insert 'mifare classic' card");
-            if let Err(e) = super::mifare_classic::handle(sender, &card) {
-                eprintln!("Error handling card: {:#?}", e);
-            }
-            card
-        }
-        // Yubikey Neo
-        b"\x3B\x8C\x80\x01\x59\x75\x62\x69\x6B\x65\x79\x4E\x45\x4F\x72\x33\x58" => {
-            println!("Insert 'Yubikey Neo' card");
-            if let Err(e) = super::mifare_classic::handle(sender, &card) {
-                eprintln!("Error handling card: {:#?}", e);
-            }
-            card
-        }
-        _ => {
-            println!("Insert unsupported card: {}", utils::bytes_to_string(&atr));
-
-            let mut ident = identify_atr(&atr);
-            if !ident.is_empty() {
-                println!("Identification: {}", ident.remove(0));
-
-                for line in ident {
-                    println!("    {}", line);
-                }
-            }
-
-            card
-        }
-    }
-}
-fn handle_payment_card(sender: &Sender<Message>, card: NfcCard, amount: i32) -> NfcCard {
-    let atr = match card.get_atr() {
-        Ok(atr) => atr,
-        Err(_) => return card,
-    };
-
-    match atr.as_slice() {
-        // mifare desfire
-        b"\x3B\x81\x80\x01\x80\x80" => {
-            println!("Payment with 'mifare desfire' card");
-            let card = MiFareDESFire::new(card);
-
-            if let Err(e) = super::mifare_desfire::handle_payment(sender, &card, amount) {
-                eprintln!("Error handling card for payment: {:#?}", e);
-            }
-
-            card.into()
-        }
-        // mifare classic
-        b"\x3B\x8F\x80\x01\x80\x4F\x0C\xA0\x00\x00\x03\x06\x03\x00\x01\x00\x00\x00\x00\x6A" => {
-            println!("Payment with 'mifare classic' card");
-            if let Err(e) = super::mifare_classic::handle_payment(sender, &card, amount) {
-                eprintln!("Error handling card for payment: {:#?}", e);
-            }
-            card
-        }
-        // Yubikey Neo
-        b"\x3B\x8C\x80\x01\x59\x75\x62\x69\x6B\x65\x79\x4E\x45\x4F\x72\x33\x58" => {
-            println!("Payment with 'yubikey neo' card");
-            if let Err(e) = super::mifare_classic::handle_payment(sender, &card, amount) {
-                eprintln!("Error handling card for payment: {:#?}", e);
-            }
-            card
-        }
-        _ => {
-            println!(
-                "Payment with unsupported card: {}",
-                utils::bytes_to_string(&atr)
-            );
-
-            let mut ident = identify_atr(&atr);
-            if !ident.is_empty() {
-                println!("Identification: {}", ident.remove(0));
-
-                for line in ident {
-                    println!("    {}", line);
-                }
-            }
-
-            card
-        }
-    }
 }
 
 pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
@@ -211,7 +104,9 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
                                     .expect("failed to connect to card"),
                             );
 
-                            let card = handle_card(&sender, card);
+                            let handler = get_nfc_handler(card);
+                            handler.handle_authentication_logged(&sender);
+                            let card = handler.finish();
 
                             current_cards.insert(name, card);
                         } else {
@@ -238,12 +133,16 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
                     if !current_cards.is_empty() {
                         if let Some(key) = current_cards.keys().next().cloned() {
                             if let Some(card) = current_cards.remove(&key) {
-                                let card = handle_card(&sender, card);
+                                let handler = get_nfc_handler(card);
+                                handler.handle_authentication_logged(&sender);
+                                let card = handler.finish();
+
                                 current_cards.insert(key, card);
                             }
                         }
                     }
                 }
+
                 ApplicationState::Payment { amount, .. } => {
                     // Request payment token for current card
                     if !current_cards.is_empty() {
@@ -251,7 +150,10 @@ pub fn run(sender: Sender<Message>, context: Arc<Mutex<ApplicationContext>>) {
 
                         if let Some(key) = current_cards.keys().next().cloned() {
                             if let Some(card) = current_cards.remove(&key) {
-                                let card = handle_payment_card(&sender, card, amount);
+                                let handler = get_nfc_handler(card);
+                                handler.handle_payment_logged(&sender, amount);
+                                let card = handler.finish();
+
                                 current_cards.insert(key, card);
                             }
                         }

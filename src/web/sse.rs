@@ -42,7 +42,7 @@ impl Broadcaster {
     pub fn spawn_ping(me: Arc<Mutex<Self>>) {
         actix_rt::spawn(async move {
             let mut task = interval_at(Instant::now(), Duration::from_secs(10));
-            while let Some(_) = task.next().await {
+            while task.next().await.is_some() {
                 me.lock().expect("Mutex deadlock!").remove_stale_clients();
             }
         })
