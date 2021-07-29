@@ -7,11 +7,11 @@ use super::mifare_utils;
 use super::utils::*;
 use super::NfcCard;
 
-pub struct MiFareDESFire {
+pub struct MiFareDESFireCard {
     pub card: NfcCard,
 }
 
-impl MiFareDESFire {
+impl MiFareDESFireCard {
     
     #[allow(clippy::match_like_matches_macro)]
     pub fn is_compatible(card: &NfcCard) -> bool {
@@ -27,7 +27,7 @@ impl MiFareDESFire {
     }
 
     pub fn new(card: NfcCard) -> Self {
-        MiFareDESFire { card }
+        MiFareDESFireCard { card }
     }
 
     fn transmit(&self, command: u8, data: &[u8]) -> NfcResult<(Status, Vec<u8>)> {
@@ -603,8 +603,8 @@ impl MiFareDESFire {
     }
 }
 
-impl From<MiFareDESFire> for NfcCard {
-    fn from(card: MiFareDESFire) -> Self {
+impl From<MiFareDESFireCard> for NfcCard {
+    fn from(card: MiFareDESFireCard) -> Self {
         card.card
     }
 }

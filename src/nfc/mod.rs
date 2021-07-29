@@ -4,6 +4,6 @@ pub mod mifare_utils;
 pub mod nfc_card;
 pub mod utils;
 
-pub use mifare_desfire::MiFareDESFire;
+pub use mifare_desfire::MiFareDESFireCard;
 pub use nfc_card::NfcCard;
 pub use utils::{NfcError, NfcResult};

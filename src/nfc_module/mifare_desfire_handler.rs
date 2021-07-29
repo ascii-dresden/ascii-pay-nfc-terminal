@@ -1,7 +1,7 @@
 use std::sync::mpsc::Sender;
 
 use super::nfc_card_handler::NfcCardHandler;
-use crate::nfc::{mifare_desfire, utils, MiFareDESFire, NfcCard, NfcError, NfcResult};
+use crate::nfc::{mifare_desfire, utils, MiFareDESFireCard, NfcCard, NfcError, NfcResult};
 use crate::utils::CheckedSender;
 use crate::web::http_client::*;
 use crate::Message;
@@ -49,7 +49,7 @@ fn create_response(secret: &[u8], challenge: &str) -> NfcResult<String> {
 }
 
 pub struct MiFareDESFireHandler {
-    card: MiFareDESFire,
+    card: MiFareDESFireCard,
 }
 
 impl MiFareDESFireHandler {
@@ -270,7 +270,7 @@ impl NfcCardHandler for MiFareDESFireHandler {
 
     fn new(card: NfcCard) -> Self {
         Self {
-            card: MiFareDESFire::new(card),
+            card: MiFareDESFireCard::new(card),
         }
     }
 

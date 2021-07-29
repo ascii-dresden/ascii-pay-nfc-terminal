@@ -5,7 +5,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use super::mifare_utils;
 use super::utils::*;
 
-pub use super::mifare_desfire_card::MiFareDESFire;
+pub use super::mifare_desfire_card::MiFareDESFireCard;
 
 pub enum Encryption {
     PlainText,
