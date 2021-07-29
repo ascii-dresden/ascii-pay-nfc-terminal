@@ -4,6 +4,8 @@ use crate::nfc::{NfcCard, NfcResult};
 use crate::Message;
 
 /// Base for all supported nfc cards
+///
+/// Communication flow is documented at https://github.com/ascii-dresden/ascii-pay-server/blob/main/doc/NFC%20Flow.svg
 pub trait NfcCardHandler {
     /// Check if this handler supports the given card type
     fn check_combatibitility(atr: &[u8]) -> bool
