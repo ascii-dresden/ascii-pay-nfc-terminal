@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use log::info;
+use log::{info, warn};
 use tokio::time;
 
 use crate::{application::ApplicationResponseContext, ServiceResult};
