@@ -30,7 +30,7 @@ use tokio::signal;
 #[tokio::main(worker_threads = 4)]
 async fn main() {
     dotenv::dotenv().ok();
-    std::env::set_var("RUST_LOG", "info");
+    std::env::set_var("RUST_LOG", "ascii_pay_authentication_proxy=info");
     env_logger::init();
 
     let mut application = Application::new();
