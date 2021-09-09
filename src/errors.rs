@@ -1,5 +1,3 @@
-use actix_web::http::header::ToStrError;
-use actix_web::{error::ResponseError, Error as ActixError, HttpResponse};
 use derive_more::Display;
 
 /// Represent errors in the application
@@ -18,12 +16,6 @@ pub enum ServiceError {
 
     #[display(fmt = "Unauthorized")]
     Unauthorized,
-}
-
-impl ServiceError {
-    pub fn actix(self) -> ActixError {
-        self.into()
-    }
 }
 
 /// Helper for `ServiceError` result
@@ -59,50 +51,45 @@ impl From<block_modes::BlockModeError> for ServiceError {
     }
 }
 
-impl From<ToStrError> for ServiceError {
-    fn from(error: ToStrError) -> Self {
-        ServiceError::BadRequest(
-            "Request contained invalid CRON_SECRET header value",
-            format!("{}", error),
-        )
+impl From<tokio_tungstenite::tungstenite::Error> for ServiceError {
+    fn from(error: tokio_tungstenite::tungstenite::Error) -> Self {
+        ServiceError::InternalServerError("Websocket error", format!("{}", error))
     }
 }
 
-impl From<reqwest::Error> for ServiceError {
-    fn from(error: reqwest::Error) -> Self {
-        ServiceError::InternalServerError("Http request failed", format!("{}", error))
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for ServiceError {
+    fn from(error: tokio::sync::mpsc::error::SendError<T>) -> Self {
+        ServiceError::InternalServerError("Internal communication error", format!("{}", error))
     }
 }
 
-/*
-/// nightly - allow `?` on Option<T> to unwrap
-impl From<std::option::NoneError> for ServiceError {
-    fn from(error: std::option::NoneError) -> ServiceError {
-        ServiceError::InternalServerError("None error", format!("{}", error))
+impl From<grpc::Error> for ServiceError {
+    fn from(error: grpc::Error) -> Self {
+        ServiceError::InternalServerError("Grpc error", format!("{}", error))
     }
 }
-*/
 
-/// Transform `ServiceError` to `HttpResponse`
-impl ResponseError for ServiceError {
-    fn error_response(&self) -> HttpResponse {
-        match self {
-            ServiceError::InternalServerError(ref source, ref cause) => {
-                HttpResponse::InternalServerError().json(json!({
-                    "message": "Internal Server Error, Please try again later",
-                    "source": source,
-                    "cause": cause
-                }))
-            }
-            ServiceError::BadRequest(ref source, ref cause) => {
-                HttpResponse::BadRequest().json(json!({
-                    "message": "Internal Server Error, Please try again later",
-                    "source": source,
-                    "cause": cause
-                }))
-            }
-            ServiceError::NotFound => HttpResponse::NotFound().json("NotFound"),
-            ServiceError::Unauthorized => HttpResponse::Unauthorized().json("Unauthorized"),
-        }
+impl From<uuid::Error> for ServiceError {
+    fn from(error: uuid::Error) -> Self {
+        ServiceError::InternalServerError("Uuid parse error", format!("{}", error))
+    }
+}
+
+impl From<tokio::task::JoinError> for ServiceError {
+    fn from(error: tokio::task::JoinError) -> Self {
+        ServiceError::InternalServerError("Tokio join error", format!("{}", error))
+    }
+}
+
+impl From<crate::nfc_module::nfc::NfcError> for ServiceError {
+    fn from(error: crate::nfc_module::nfc::NfcError) -> Self {
+        ServiceError::InternalServerError("NFC error", format!("{:?}", error))
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl From<pcsc::Error> for ServiceError {
+    fn from(error: pcsc::Error) -> Self {
+        ServiceError::InternalServerError("NFC error", format!("{}", error))
     }
 }

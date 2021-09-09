@@ -1,9 +1,12 @@
-use std::sync::mpsc::Sender;
+use uuid::Uuid;
 
-use super::nfc_card_handler::NfcCardHandler;
-use crate::nfc::{utils, NfcCard, NfcResult};
-use crate::nfc_module::identify_atr;
-use crate::Message;
+use crate::{
+    application::ApplicationResponseContext,
+    nfc_module::{identify_atr, nfc::utils},
+    ServiceResult,
+};
+
+use super::nfc::NfcCard;
 
 const MIFARE_CLASSIC_ID_REQUEST: [u8; 5] = hex!("FF CA 00 00 00");
 
@@ -11,25 +14,27 @@ pub struct UnsupportedCardHandler {
     card: NfcCard,
 }
 
-impl NfcCardHandler for UnsupportedCardHandler {
-    fn check_combatibitility(atr: &[u8]) -> bool {
+impl UnsupportedCardHandler {
+    pub fn check_combatibitility(atr: &[u8]) -> bool {
         true
     }
 
-    fn new(card: NfcCard) -> Self {
+    pub fn new(card: NfcCard) -> Self {
         Self { card }
     }
 
-    fn finish(self) -> NfcCard {
+    pub fn finish(self) -> NfcCard {
         self.card
     }
-
-    fn handle_authentication(&self, sender: &Sender<Message>) -> NfcResult<()> {
+    pub async fn handle_card_authentication(
+        &self,
+        context: &ApplicationResponseContext,
+    ) -> ServiceResult<()> {
         println!("Trying to authenticate an unsupported nfc card!");
         let atr = self.card.get_atr()?;
         println!("   ATR: {}", utils::bytes_to_string(&atr));
 
-        let ident = identify_atr(&atr);
+        let ident = identify_atr(&atr).await;
         for line in ident {
             println!("        {}", line);
         }
@@ -47,7 +52,11 @@ impl NfcCardHandler for UnsupportedCardHandler {
         Ok(())
     }
 
-    fn handle_payment(&self, sender: &Sender<Message>, amount: i32) -> NfcResult<()> {
+    pub async fn handle_card_init(
+        &self,
+        context: &ApplicationResponseContext,
+        account_id: Uuid,
+    ) -> ServiceResult<()> {
         Ok(())
     }
 }

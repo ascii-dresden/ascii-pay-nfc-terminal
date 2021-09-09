@@ -12,7 +12,6 @@ pub struct MiFareDESFireCard {
 }
 
 impl MiFareDESFireCard {
-    
     #[allow(clippy::match_like_matches_macro)]
     pub fn is_compatible(card: &NfcCard) -> bool {
         let atr = match card.get_atr() {
@@ -83,7 +82,7 @@ impl MiFareDESFireCard {
 
         let dk_rndA_rndBshifted = mifare_utils::tdes_encrypt(key, &rndA_rndBshifted)?;
 
-        let (status, ek_rndAshifted_card) = self.transmit(0xAFu8, &dk_rndA_rndBshifted)?;
+        let (status, ek_rndAshifted_card) = self.transmit(0xAF, &dk_rndA_rndBshifted)?;
         status.to_result()?;
         let rndAshifted_card = mifare_utils::tdes_decrypt(key, &ek_rndAshifted_card)?;
 
@@ -100,6 +99,22 @@ impl MiFareDESFireCard {
         }
 
         Ok(session_key)
+    }
+
+    #[allow(non_snake_case)]
+    pub fn authenticate_phase1(&self, key_no: u8) -> NfcResult<Vec<u8>> {
+        let (status, ek_rndB) = self.transmit(0x0A, &[key_no])?;
+        status.to_result()?;
+
+        Ok(ek_rndB)
+    }
+
+    #[allow(non_snake_case)]
+    pub fn authenticate_phase2(&self, dk_rndA_rndBshifted: &[u8]) -> NfcResult<Vec<u8>> {
+        let (status, ek_rndAshifted_card) = self.transmit(0xAF, dk_rndA_rndBshifted)?;
+        status.to_result()?;
+
+        Ok(ek_rndAshifted_card)
     }
 
     pub fn change_key_settings(&self, settings: &KeySettings, session_key: &[u8]) -> NfcResult<()> {

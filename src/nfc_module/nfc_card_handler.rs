@@ -1,40 +1,58 @@
-use std::sync::mpsc::Sender;
+use uuid::Uuid;
 
-use crate::nfc::{NfcCard, NfcResult};
-use crate::Message;
+use crate::{application::ApplicationResponseContext, ServiceResult};
 
-/// Base for all supported nfc cards
-///
-/// Communication flow is documented at https://github.com/ascii-dresden/ascii-pay-server/blob/main/doc/NFC%20Flow.svg
-pub trait NfcCardHandler {
-    /// Check if this handler supports the given card type
-    fn check_combatibitility(atr: &[u8]) -> bool
-    where
-        Self: Sized;
+use super::{nfc::NfcCard, GenericNfcHandler, MiFareDESFireHandler, UnsupportedCardHandler};
 
-    /// Wrap the given `NfcCard`
-    fn new(card: NfcCard) -> Self
-    where
-        Self: Sized;
+pub enum NfcCardHandlerWrapper {
+    MiFareDESFire(MiFareDESFireHandler),
+    MiFareClassic(GenericNfcHandler),
+    UnsupportedCard(UnsupportedCardHandler),
+}
 
-    /// Free this wrapper and return the original `NfcCard`
-    fn finish(self) -> NfcCard;
+impl NfcCardHandlerWrapper {
+    pub fn new(card: NfcCard) -> Self {
+        if let Ok(atr) = card.get_atr() {
+            if MiFareDESFireHandler::check_combatibitility(&atr) {
+                return Self::MiFareDESFire(MiFareDESFireHandler::new(card));
+            }
 
-    /// Perfrom authentication flow
-    fn handle_authentication(&self, sender: &Sender<Message>) -> NfcResult<()>;
+            if GenericNfcHandler::check_combatibitility(&atr) {
+                return Self::MiFareClassic(GenericNfcHandler::new(card));
+            }
+        }
 
-    /// Perfrom payment flow
-    fn handle_payment(&self, sender: &Sender<Message>, amount: i32) -> NfcResult<()>;
+        Self::UnsupportedCard(UnsupportedCardHandler::new(card))
+    }
 
-    fn handle_authentication_logged(&self, sender: &Sender<Message>) {
-        if let Err(e) = self.handle_authentication(sender) {
-            println!("Cannot handle authentication {:?}", e);
+    pub fn finish(self) -> NfcCard {
+        match self {
+            Self::MiFareDESFire(handler) => handler.finish(),
+            Self::MiFareClassic(handler) => handler.finish(),
+            Self::UnsupportedCard(handler) => handler.finish(),
         }
     }
 
-    fn handle_payment_logged(&self, sender: &Sender<Message>, amount: i32) {
-        if let Err(e) = self.handle_payment(sender, amount) {
-            println!("Cannot handle payment {:?}", e);
+    pub async fn handle_card_authentication(
+        &self,
+        context: &ApplicationResponseContext,
+    ) -> ServiceResult<()> {
+        match self {
+            Self::MiFareDESFire(handler) => handler.handle_card_authentication(context).await,
+            Self::MiFareClassic(handler) => handler.handle_card_authentication(context).await,
+            Self::UnsupportedCard(handler) => handler.handle_card_authentication(context).await,
+        }
+    }
+
+    pub async fn handle_card_init(
+        &self,
+        context: &ApplicationResponseContext,
+        account_id: Uuid,
+    ) -> ServiceResult<()> {
+        match self {
+            Self::MiFareDESFire(handler) => handler.handle_card_init(context, account_id).await,
+            Self::MiFareClassic(handler) => handler.handle_card_init(context, account_id).await,
+            Self::UnsupportedCard(handler) => handler.handle_card_init(context, account_id).await,
         }
     }
 }
