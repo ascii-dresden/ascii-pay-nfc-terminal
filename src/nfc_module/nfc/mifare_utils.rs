@@ -4,6 +4,7 @@ use block_modes::{BlockMode, Cbc};
 use des::block_cipher_trait::BlockCipher;
 use des::TdesEde2;
 use generic_array::GenericArray;
+use log::info;
 
 /// Communication to the mifare desfire always requires the tdes decribt
 struct MiFareTdes {
