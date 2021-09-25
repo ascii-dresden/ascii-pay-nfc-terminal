@@ -30,7 +30,7 @@ impl MiFareDESFireCard {
     }
 
     fn transmit(&self, command: u8, data: &[u8]) -> NfcResult<(Status, Vec<u8>)> {
-        // println!(
+        // info!(
         //     "  Send Command: {:X?}, l={}, data={:X?}",
         //     command,
         //     data.len(),
@@ -47,7 +47,7 @@ impl MiFareDESFireCard {
         }
 
         let status = Status::parse(data.remove(0));
-        // println!("   --> {:X?}, l={}, data={:X?}", status, data.len(), data);
+        // info!("   --> {:X?}, l={}, data={:X?}", status, data.len(), data);
 
         if data.as_slice() == [0x90, 0x00] {
             data = vec![];

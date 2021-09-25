@@ -1,6 +1,7 @@
 use std::io::Cursor;
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use log::error;
 
 use super::mifare_utils;
 use super::utils::*;
@@ -153,7 +154,7 @@ impl Status {
         };
 
         if result.is_err() {
-            eprintln!("NFC commuincation error: {:?}", self);
+            error!("NFC commuincation error: {:?}", self);
         }
 
         result

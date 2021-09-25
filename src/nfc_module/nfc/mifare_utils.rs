@@ -116,15 +116,15 @@ pub fn crc_test() {
     let x = hex!("00 00");
     let crc = crc_checksum(&x);
 
-    println!("{:X?}", x);
-    println!("{:X?}", crc);
+    info!("{:X?}", x);
+    info!("{:X?}", crc);
     assert_eq!(crc, hex!("A0 1E"));
 
     let x = hex!("12 34");
     let crc = crc_checksum(&x);
 
-    println!("{:X?}", x);
-    println!("{:X?}", crc);
+    info!("{:X?}", x);
+    info!("{:X?}", crc);
     assert_eq!(crc, hex!("26 CF"));
 }
 

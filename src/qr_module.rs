@@ -16,7 +16,7 @@ impl QrModule {
 
     pub async fn run(mut self) -> ServiceResult<()> {
         info!("Start qr module");
-        if !cfg!(target_os="linux") {
+        if !cfg!(target_os = "linux") {
             warn!("Could not load libev. Fallback to stdin!");
         }
 
@@ -155,7 +155,7 @@ mod qr_reader {
                     return Some(result);
                 }
                 _ => {
-                    println!("Unknown: {:?}", key);
+                    info!("Unknown: {:?}", key);
                     return None;
                 }
             };

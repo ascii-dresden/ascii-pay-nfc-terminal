@@ -1,3 +1,4 @@
+use log::info;
 use uuid::Uuid;
 
 use crate::{
@@ -30,24 +31,24 @@ impl UnsupportedCardHandler {
         &self,
         context: &ApplicationResponseContext,
     ) -> ServiceResult<()> {
-        println!("Trying to authenticate an unsupported nfc card!");
+        info!("Trying to authenticate an unsupported nfc card!");
         let atr = self.card.get_atr()?;
-        println!("   ATR: {}", utils::bytes_to_string(&atr));
+        info!("   ATR: {}", utils::bytes_to_string(&atr));
 
         let ident = identify_atr(&atr).await;
         for line in ident {
-            println!("        {}", line);
+            info!("        {}", line);
         }
 
         let mifare_classic_id = self.card.transmit(&MIFARE_CLASSIC_ID_REQUEST)?;
-        println!(
+        info!(
             "    MiFare Classic ID: {}",
             utils::bytes_to_string(&mifare_classic_id)
         );
-        println!("    If this ID does not change between different authentication attempts");
-        println!("    but is unique between different cards, support for this card type can");
-        println!("    be added via the generic MiFareClassicHandler by adding this ATR:");
-        println!("    {}", utils::bytes_to_bytestring(&atr));
+        info!("    If this ID does not change between different authentication attempts");
+        info!("    but is unique between different cards, support for this card type can");
+        info!("    be added via the generic MiFareClassicHandler by adding this ATR:");
+        info!("    {}", utils::bytes_to_bytestring(&atr));
 
         Ok(())
     }

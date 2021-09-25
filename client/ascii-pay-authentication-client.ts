@@ -1,4 +1,3 @@
-
 type RequestAccountAccessToken = {
     type: 'RequestAccountAccessToken',
     payload: {}
@@ -61,7 +60,7 @@ export class AsciiPayAuthenticationClient {
 
     private createWebSocket() {
         let self = this
-        this.socket = new WebSocket('ws://localhost:8080')
+        this.socket = new WebSocket(this.url)
 
         this.socket.addEventListener('close', function (event) {
             setTimeout(() => {

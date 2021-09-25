@@ -1,3 +1,4 @@
+use log::info;
 use uuid::Uuid;
 
 use crate::{application::ApplicationResponseContext, ServiceError, ServiceResult};
@@ -27,11 +28,11 @@ impl GenericNfcHandler {
     pub fn check_combatibitility(atr: &[u8]) -> bool {
         match atr {
             b"\x3B\x8F\x80\x01\x80\x4F\x0C\xA0\x00\x00\x03\x06\x03\x00\x01\x00\x00\x00\x00\x6A" => {
-                println!("Insert 'MiFare Classic' card");
+                info!("Insert 'MiFare Classic' card");
                 true
             }
             b"\x3B\x8C\x80\x01\x59\x75\x62\x69\x6B\x65\x79\x4E\x45\x4F\x72\x33\x58" => {
-                println!("Insert 'Yubikey Neo' card");
+                info!("Insert 'Yubikey Neo' card");
                 true
             }
             _ => false,

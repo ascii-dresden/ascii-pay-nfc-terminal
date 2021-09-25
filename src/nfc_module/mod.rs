@@ -113,7 +113,7 @@ fn run_loop(context: ApplicationResponseContext, current_cards: CardMapMutex) {
             .expect("failed to list readers");
         for name in names {
             if !reader_states.iter().any(|rs| rs.name() == name) {
-                // println!("Adding {:?}", name);
+                // info!("Adding {:?}", name);
                 reader_states.push(ReaderState::new(name, State::UNAWARE));
             }
         }
@@ -158,7 +158,7 @@ fn run_loop(context: ApplicationResponseContext, current_cards: CardMapMutex) {
                         // Remove current card.
                         if current_cards.contains_key(&name) {
                             current_cards.remove(&name);
-                            println!("Remove nfc card");
+                            info!("Remove nfc card");
                             rt.block_on(context.send_nfc_card_removed()).unwrap();
                         }
                     }

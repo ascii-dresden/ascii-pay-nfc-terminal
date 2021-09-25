@@ -1,3 +1,4 @@
+use log::info;
 use uuid::Uuid;
 
 use crate::{
@@ -208,7 +209,7 @@ impl MiFareDESFireHandler {
     pub fn check_combatibitility(atr: &[u8]) -> bool {
         match atr {
             b"\x3B\x81\x80\x01\x80\x80" => {
-                println!("Insert 'MiFare DESFire' card");
+                info!("Insert 'MiFare DESFire' card");
                 true
             }
             _ => false,
@@ -232,7 +233,7 @@ impl MiFareDESFireHandler {
     ) -> ServiceResult<()> {
         let card_id = self.get_card_id()?;
 
-        println!("Mensa Data: {:?}", self.read_mensa_data());
+        info!("Mensa Data: {:?}", self.read_mensa_data());
 
         if let Ok((card_id, nfc_card_type)) = context.authenticate_nfc_type(card_id.clone()).await {
             match nfc_card_type {
