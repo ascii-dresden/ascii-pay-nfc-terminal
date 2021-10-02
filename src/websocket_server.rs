@@ -114,8 +114,13 @@ async fn handle_connection(
     while let Some(msg) = b.next().await {
         let msg = msg?;
 
-        let request = serde_json::from_slice::<WebsocketRequestMessage>(&msg.into_data())?;
+        let msg_data = msg.into_data();
 
+        if msg_data.is_empty() {
+            continue;
+        }
+
+        let request = serde_json::from_slice::<WebsocketRequestMessage>(&msg_data)?;
         match request {
             WebsocketRequestMessage::RequestAccountAccessToken {} => {
                 context.send_request_account_access_token().await?

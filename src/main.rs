@@ -20,6 +20,8 @@ mod nfc_module;
 use nfc_module::NfcModule;
 mod qr_module;
 use qr_module::QrModule;
+mod demo_module;
+use demo_module::DemoModule;
 
 use std::process::exit;
 
@@ -41,14 +43,23 @@ async fn main() {
     );
     tokio::spawn(websocket_server.run());
 
-    let qr_module = QrModule::new(application.get_response_context());
-    tokio::spawn(qr_module.run());
+    let isDemo = std::env::args().fold(false, |acc, curr| acc || curr == "--demo");
+    if isDemo || true {
+        let demo_module = DemoModule::new(
+            application.get_response_context(),
+            application.get_nfc_receiver(),
+        );
+        tokio::spawn(demo_module.run());
+    } else {
+        let qr_module = QrModule::new(application.get_response_context());
+        tokio::spawn(qr_module.run());
 
-    let nfc_module = NfcModule::new(
-        application.get_response_context(),
-        application.get_nfc_receiver(),
-    );
-    tokio::spawn(nfc_module.run());
+        let nfc_module = NfcModule::new(
+            application.get_response_context(),
+            application.get_nfc_receiver(),
+        );
+        tokio::spawn(nfc_module.run());
+    }
 
     tokio::spawn(application.run());
     match signal::ctrl_c().await {
