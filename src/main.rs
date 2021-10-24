@@ -22,6 +22,7 @@ mod qr_module;
 use qr_module::QrModule;
 mod demo_module;
 use demo_module::DemoModule;
+pub mod status;
 
 use std::process::exit;
 
@@ -43,8 +44,8 @@ async fn main() {
     );
     tokio::spawn(websocket_server.run());
 
-    let isDemo = std::env::args().fold(false, |acc, curr| acc || curr == "--demo");
-    if isDemo || true {
+    let isDemo = std::env::args().any(|arg| arg == "--demo");
+    if isDemo {
         let demo_module = DemoModule::new(
             application.get_response_context(),
             application.get_nfc_receiver(),

@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
-use log::{info};
-use tokio::sync::{Mutex, mpsc};
+use log::info;
+use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
-use crate::{ServiceError, ServiceResult, application::ApplicationResponseContext, nfc_module::NfcCommand};
+use crate::{
+    application::ApplicationResponseContext, nfc_module::NfcCommand, ServiceError, ServiceResult,
+};
 
 pub struct DemoModule {
     context: ApplicationResponseContext,
@@ -85,28 +87,24 @@ async fn run_loop(context: ApplicationResponseContext, current_cards: Arc<Mutex<
             if code.starts_with("nfc") {
                 let mut current_cards = current_cards.lock().await;
 
-                if current_cards.is_none()  {
+                if current_cards.is_none() {
                     handle_card_authentication(&context, &code).await;
                     *current_cards = Some(code);
                 } else {
                     context.send_nfc_card_removed().await.unwrap();
                     *current_cards = None;
                 }
+            } else if let Ok((token_type, token)) = context.authenticate_barcode(code.clone()).await
+            {
+                context.send_token(token_type, token).await.unwrap();
             } else {
-                if let Ok((token_type, token)) = context.authenticate_barcode(code.clone()).await {
-                    context.send_token(token_type, token).await.unwrap();
-                } else {
-                    context.send_found_unknown_barcode(code).await.unwrap();
-                }
+                context.send_found_unknown_barcode(code).await.unwrap();
             }
         }
     }
 }
 
-async fn handle_card_authentication(
-    context: &ApplicationResponseContext,
-    card: &str,
-) {
+async fn handle_card_authentication(context: &ApplicationResponseContext, card: &str) {
     let card_id = card.to_owned();
 
     if let Ok((card_id, nfc_card_type)) = context.authenticate_nfc_type(card_id.clone()).await {
@@ -121,8 +119,8 @@ async fn handle_card_authentication(
                 Result::<(), ServiceError>::Err(ServiceError::InternalServerError(
                     "NFC card type miss match",
                     String::new(),
-                )).unwrap();
-                return;
+                ))
+                .unwrap();
             }
         }
     } else {
@@ -133,11 +131,7 @@ async fn handle_card_authentication(
     }
 }
 
-async fn handle_card_init(
-    context: &ApplicationResponseContext,
-    card: &str,
-    account_id: Uuid,
-) {
+async fn handle_card_init(context: &ApplicationResponseContext, card: &str, account_id: Uuid) {
     let card_id = card.to_owned();
 
     context

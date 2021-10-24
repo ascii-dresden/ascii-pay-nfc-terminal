@@ -14,5 +14,6 @@ fn compile_protobuf() -> io::Result<()> {
 }
 
 fn main() {
+    shadow_rs::new().unwrap();
     compile_protobuf().unwrap();
 }

@@ -27,6 +27,12 @@ impl From<std::io::Error> for ServiceError {
     }
 }
 
+impl From<std::fmt::Error> for ServiceError {
+    fn from(error: std::fmt::Error) -> Self {
+        ServiceError::InternalServerError("fmt error", format!("{}", error))
+    }
+}
+
 impl From<serde_json::Error> for ServiceError {
     fn from(error: serde_json::Error) -> Self {
         ServiceError::InternalServerError("Serialization error", format!("{}", error))

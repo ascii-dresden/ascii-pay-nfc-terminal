@@ -11,6 +11,7 @@ use crate::{
         authentication_grpc::AsciiPayAuthenticationClient,
     },
     nfc_module::{nfc::utils, NfcCommand},
+    status,
     websocket_server::WebsocketResponseMessage,
     ServiceError, ServiceResult,
 };
@@ -24,6 +25,7 @@ enum ApplicationCommand {
     RequestReboot,
     RegisterNfcCard { account_id: Uuid },
     NfcCardRemoved,
+    RequestStatusInformation,
 }
 
 #[derive(Clone)]
@@ -257,6 +259,13 @@ impl ApplicationRequestContext {
             .await
             .map_err(ServiceError::from)
     }
+
+    pub async fn request_status_information(&self) -> ServiceResult<()> {
+        self.sender
+            .send(ApplicationCommand::RequestStatusInformation)
+            .await
+            .map_err(ServiceError::from)
+    }
 }
 
 pub struct Application {
@@ -379,6 +388,18 @@ impl Application {
                     if let Some(sender) = self.websocket_sender.as_ref() {
                         sender
                             .send(WebsocketResponseMessage::NfcCardRemoved)
+                            .await
+                            .unwrap();
+                    }
+                }
+
+                ApplicationCommand::RequestStatusInformation => {
+                    info!("RequestStatusInformation()");
+
+                    let info = status::get_info().unwrap_or_else(|_| String::new());
+                    if let Some(sender) = self.websocket_sender.as_ref() {
+                        sender
+                            .send(WebsocketResponseMessage::StatusInformation { status: info })
                             .await
                             .unwrap();
                     }

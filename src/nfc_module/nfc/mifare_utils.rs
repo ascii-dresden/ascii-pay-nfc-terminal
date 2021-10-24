@@ -4,7 +4,6 @@ use block_modes::{BlockMode, Cbc};
 use des::block_cipher_trait::BlockCipher;
 use des::TdesEde2;
 use generic_array::GenericArray;
-use log::info;
 
 /// Communication to the mifare desfire always requires the tdes decribt
 struct MiFareTdes {
@@ -114,6 +113,8 @@ pub fn is_key_2des(key: &[u8]) -> bool {
 
 #[test]
 pub fn crc_test() {
+    use log::info;
+
     let x = hex!("00 00");
     let crc = crc_checksum(&x);
 

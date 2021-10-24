@@ -17,6 +17,7 @@ pub enum WebsocketRequestMessage {
     RequestAccountAccessToken,
     RequestReboot,
     RegisterNfcCard { account_id: Uuid },
+    RequestStatusInformation,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,6 +28,7 @@ pub enum WebsocketResponseMessage {
     FoundProductId { product_id: Uuid },
     FoundAccountAccessToken { access_token: String },
     NfcCardRemoved,
+    StatusInformation { status: String },
 }
 
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, mpsc::Sender<WebsocketResponseMessage>>>>;
@@ -128,6 +130,9 @@ async fn handle_connection(
             WebsocketRequestMessage::RequestReboot {} => context.send_request_reboot().await?,
             WebsocketRequestMessage::RegisterNfcCard { account_id } => {
                 context.send_register_nfc_card(account_id).await?
+            }
+            WebsocketRequestMessage::RequestStatusInformation => {
+                context.request_status_information().await?
             }
         }
     }
