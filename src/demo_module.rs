@@ -5,7 +5,8 @@ use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
 use crate::{
-    application::ApplicationResponseContext, nfc_module::NfcCommand, ServiceError, ServiceResult,
+    application::ApplicationResponseContext, nfc_module::NfcCommand,
+    qr_module::check_code_for_account_number, ServiceError, ServiceResult,
 };
 
 pub struct DemoModule {
@@ -84,7 +85,10 @@ async fn run_loop(context: ApplicationResponseContext, current_cards: Arc<Mutex<
         let mut reader = std_reader::StdReader::new().unwrap();
 
         while let Some(code) = reader.get_next_code().await.unwrap() {
-            if code.starts_with("nfc") {
+            let code = code.trim().to_owned();
+            if let Some(account_number) = check_code_for_account_number(&code) {
+                context.send_found_account_number(account_number).await.unwrap();
+            } else if code.starts_with("nfc") {
                 let mut current_cards = current_cards.lock().await;
 
                 if current_cards.is_none() {

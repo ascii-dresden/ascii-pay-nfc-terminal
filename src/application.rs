@@ -18,6 +18,7 @@ use crate::{
 
 enum ApplicationCommand {
     FoundUnknownBarcode { code: String },
+    FoundAccountNumber { account_number: String },
     FoundUnknownNfcCard { id: String, name: String },
     FoundProductId { product_id: Uuid },
     FoundAccountAccessToken { access_token: String },
@@ -38,6 +39,12 @@ impl ApplicationResponseContext {
     pub async fn send_found_unknown_barcode(&self, code: String) -> ServiceResult<()> {
         self.sender
             .send(ApplicationCommand::FoundUnknownBarcode { code })
+            .await
+            .map_err(ServiceError::from)
+    }
+    pub async fn send_found_account_number(&self, account_number: String) -> ServiceResult<()> {
+        self.sender
+            .send(ApplicationCommand::FoundAccountNumber { account_number })
             .await
             .map_err(ServiceError::from)
     }
@@ -327,6 +334,15 @@ impl Application {
                     if let Some(sender) = self.websocket_sender.as_ref() {
                         sender
                             .send(WebsocketResponseMessage::FoundUnknownBarcode { code })
+                            .await
+                            .unwrap();
+                    }
+                }
+                ApplicationCommand::FoundAccountNumber { account_number } => {
+                    info!("FoundAccountNumber({})", account_number);
+                    if let Some(sender) = self.websocket_sender.as_ref() {
+                        sender
+                            .send(WebsocketResponseMessage::FoundAccountNumber { account_number })
                             .await
                             .unwrap();
                     }

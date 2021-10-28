@@ -24,6 +24,7 @@ pub enum WebsocketRequestMessage {
 #[serde(tag = "type", content = "payload")]
 pub enum WebsocketResponseMessage {
     FoundUnknownBarcode { code: String },
+    FoundAccountNumber { account_number: String },
     FoundUnknownNfcCard { id: String, name: String },
     FoundProductId { product_id: Uuid },
     FoundAccountAccessToken { access_token: String },
