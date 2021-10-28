@@ -55,7 +55,7 @@ impl WebsocketServer {
     pub async fn run(self) -> ServiceResult<()> {
         info!("Start websocket module");
 
-        let listener = TcpListener::bind("127.0.0.1:9001").await?;
+        let listener = TcpListener::bind("0.0.0.0:9001").await?;
 
         let mut rx = self.recv;
         let map = self.map.clone();
