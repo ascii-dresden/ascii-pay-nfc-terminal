@@ -287,7 +287,7 @@ impl Application {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel(32);
 
-        let grpc_client = Arc::new(grpc::ClientBuilder::new("::1", 50051).build().unwrap());
+        let grpc_client = Arc::new(grpc::ClientBuilder::new("::1", 8081).build().unwrap());
         let client = AsciiPayAuthenticationClient::with_client(grpc_client);
 
         Self {
