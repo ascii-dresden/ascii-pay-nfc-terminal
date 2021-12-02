@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use grpc::ClientStub;
+use grpcio::{ChannelBuilder, ChannelCredentialsBuilder, EnvBuilder};
 use log::info;
 use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
@@ -91,16 +91,14 @@ impl ApplicationResponseContext {
     }
 
     pub async fn authenticate_barcode(&self, code: String) -> ServiceResult<(TokenType, String)> {
-        let options = grpc::RequestOptions::new();
         let mut req = crate::grpc::authentication::AuthenticateBarcodeRequest::new();
         req.set_code(code);
 
-        let (_, res, _) = self
+        let res = self
             .grpc_client
             .lock()
             .await
-            .authenticate_barcode(options, req)
-            .join_metadata_result()
+            .authenticate_barcode_async(&req)?
             .await?;
         Ok((res.get_tokenType(), res.get_token().to_owned()))
     }
@@ -109,16 +107,14 @@ impl ApplicationResponseContext {
         &self,
         card_id: String,
     ) -> ServiceResult<(String, NfcCardType)> {
-        let options = grpc::RequestOptions::new();
         let mut req = crate::grpc::authentication::AuthenticateNfcTypeRequest::new();
         req.set_card_id(card_id);
 
-        let (_, res, _) = self
+        let res = self
             .grpc_client
             .lock()
             .await
-            .authenticate_nfc_type(options, req)
-            .join_metadata_result()
+            .authenticate_nfc_type_async(&req)?
             .await?;
         Ok((res.get_card_id().to_owned(), res.get_tokenType()))
     }
@@ -127,16 +123,14 @@ impl ApplicationResponseContext {
         &self,
         card_id: String,
     ) -> ServiceResult<(String, TokenType, String)> {
-        let options = grpc::RequestOptions::new();
         let mut req = crate::grpc::authentication::AuthenticateNfcGenericRequest::new();
         req.set_card_id(card_id);
 
-        let (_, res, _) = self
+        let res = self
             .grpc_client
             .lock()
             .await
-            .authenticate_nfc_generic(options, req)
-            .join_metadata_result()
+            .authenticate_nfc_generic_async(&req)?
             .await?;
         Ok((
             res.get_card_id().to_owned(),
@@ -150,17 +144,15 @@ impl ApplicationResponseContext {
         card_id: String,
         ek_rndB: &[u8],
     ) -> ServiceResult<(String, Vec<u8>)> {
-        let options = grpc::RequestOptions::new();
         let mut req = crate::grpc::authentication::AuthenticateNfcMifareDesfirePhase1Request::new();
         req.set_card_id(card_id);
         req.set_ek_rndB(utils::bytes_to_string(ek_rndB));
 
-        let (_, res, _) = self
+        let res = self
             .grpc_client
             .lock()
             .await
-            .authenticate_nfc_mifare_desfire_phase1(options, req)
-            .join_metadata_result()
+            .authenticate_nfc_mifare_desfire_phase1_async(&req)?
             .await?;
         Ok((
             res.get_card_id().to_owned(),
@@ -174,18 +166,16 @@ impl ApplicationResponseContext {
         dk_rndA_rndBshifted: &[u8],
         ek_rndAshifted_card: &[u8],
     ) -> ServiceResult<(String, Vec<u8>, TokenType, String)> {
-        let options = grpc::RequestOptions::new();
         let mut req = crate::grpc::authentication::AuthenticateNfcMifareDesfirePhase2Request::new();
         req.set_card_id(card_id);
         req.set_dk_rndA_rndBshifted(utils::bytes_to_string(dk_rndA_rndBshifted));
         req.set_ek_rndAshifted_card(utils::bytes_to_string(ek_rndAshifted_card));
 
-        let (_, res, _) = self
+        let res = self
             .grpc_client
             .lock()
             .await
-            .authenticate_nfc_mifare_desfire_phase2(options, req)
-            .join_metadata_result()
+            .authenticate_nfc_mifare_desfire_phase2_async(&req)?
             .await?;
         Ok((
             res.get_card_id().to_owned(),
@@ -200,17 +190,15 @@ impl ApplicationResponseContext {
         card_id: String,
         account_id: Uuid,
     ) -> ServiceResult<String> {
-        let options = grpc::RequestOptions::new();
         let mut req = crate::grpc::authentication::AuthenticateNfcGenericInitCardRequest::new();
         req.set_card_id(card_id);
         req.set_account_id(account_id.to_string());
 
-        let (_, res, _) = self
+        let res = self
             .grpc_client
             .lock()
             .await
-            .authenticate_nfc_generic_init_card(options, req)
-            .join_metadata_result()
+            .authenticate_nfc_generic_init_card_async(&req)?
             .await?;
         Ok(res.get_card_id().to_owned())
     }
@@ -220,18 +208,16 @@ impl ApplicationResponseContext {
         card_id: String,
         account_id: Uuid,
     ) -> ServiceResult<(String, Vec<u8>)> {
-        let options = grpc::RequestOptions::new();
         let mut req =
             crate::grpc::authentication::AuthenticateNfcMifareDesfireInitCardRequest::new();
         req.set_card_id(card_id);
         req.set_account_id(account_id.to_string());
 
-        let (_, res, _) = self
+        let res = self
             .grpc_client
             .lock()
             .await
-            .authenticate_nfc_mifare_desfire_init_card(options, req)
-            .join_metadata_result()
+            .authenticate_nfc_mifare_desfire_init_card_async(&req)?
             .await?;
         Ok((
             res.get_card_id().to_owned(),
@@ -286,9 +272,22 @@ pub struct Application {
 impl Application {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel(32);
+        let env = Arc::new(EnvBuilder::new().build());
 
-        let grpc_client = Arc::new(grpc::ClientBuilder::new("::1", 8081).build().unwrap());
-        let client = AsciiPayAuthenticationClient::with_client(grpc_client);
+        let root_cert = include_bytes!("../certificates/root.pem").to_vec();
+        let cert = include_bytes!("../certificates/client.crt").to_vec();
+        let private_key = include_bytes!("../certificates/ascii-pay-client.pem").to_vec();
+        let ch = ChannelBuilder::new(env)
+            .default_authority("secure-pay.ascii.coffee")
+            .secure_connect(
+                "secure-pay.ascii.coffee:443",
+                ChannelCredentialsBuilder::new()
+                    .root_cert(root_cert)
+                    .cert(cert, private_key)
+                    .build(),
+            );
+
+        let client = AsciiPayAuthenticationClient::new(ch);
 
         Self {
             command_sender: tx,

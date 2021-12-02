@@ -16,7 +16,7 @@ use tokio::runtime::Runtime;
 use tokio::task;
 pub use unsupported_card_handler::UnsupportedCardHandler;
 
-use log::info;
+use log::{error, info};
 use pcsc::{Context, Protocols, ReaderState, Scope, ShareMode, State, PNP_NOTIFICATION};
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -173,8 +173,8 @@ async fn handle_card_authentication(
     card: NfcCard,
 ) -> NfcCard {
     let handler = NfcCardHandlerWrapper::new(card);
-    if handler.handle_card_authentication(context).await.is_err() {
-        // TODO
+    if let Err(e) = handler.handle_card_authentication(context).await {
+        error!("Cannot authenticate card: {:?}", e);
     }
     handler.finish()
 }
@@ -185,8 +185,8 @@ async fn handle_card_init(
     account_id: Uuid,
 ) -> NfcCard {
     let handler = NfcCardHandlerWrapper::new(card);
-    if handler.handle_card_init(context, account_id).await.is_err() {
-        // TODO
+    if let Err(e) = handler.handle_card_init(context, account_id).await {
+        error!("Cannot authenticate card: {:?}", e);
     }
     handler.finish()
 }

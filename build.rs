@@ -1,19 +1,13 @@
-use std::io;
+extern crate protoc_grpcio;
 
-fn compile_protobuf() -> io::Result<()> {
+fn compile_protobuf() {
     println!("cargo:rerun-if-changed=proto/authentication.proto");
 
-    protoc_rust_grpc::Codegen::new()
-        .out_dir("src/grpc")
-        .input("proto/authentication.proto")
-        .rust_protobuf(true)
-        .run()
-        .expect("protoc-rust-grpc");
-
-    Ok(())
+    protoc_grpcio::compile_grpc_protos(&["proto/authentication.proto"], &[""], "src/grpc", None)
+        .expect("Failed to compile gRPC definitions!");
 }
 
 fn main() {
     shadow_rs::new().unwrap();
-    compile_protobuf().unwrap();
+    compile_protobuf();
 }

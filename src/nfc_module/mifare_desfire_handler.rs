@@ -231,9 +231,8 @@ impl MiFareDESFireHandler {
         &self,
         context: &ApplicationResponseContext,
     ) -> ServiceResult<()> {
-        let card_id = self.get_card_id()?;
-
         info!("Mensa Data: {:?}", self.read_mensa_data());
+        let card_id = self.get_card_id()?;
 
         if let Ok((card_id, nfc_card_type)) = context.authenticate_nfc_type(card_id.clone()).await {
             match nfc_card_type {

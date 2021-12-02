@@ -69,8 +69,8 @@ impl<T> From<tokio::sync::mpsc::error::SendError<T>> for ServiceError {
     }
 }
 
-impl From<grpc::Error> for ServiceError {
-    fn from(error: grpc::Error) -> Self {
+impl From<grpcio::Error> for ServiceError {
+    fn from(error: grpcio::Error) -> Self {
         ServiceError::InternalServerError("Grpc error", format!("{}", error))
     }
 }
