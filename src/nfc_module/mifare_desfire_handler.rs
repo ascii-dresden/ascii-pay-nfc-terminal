@@ -252,9 +252,15 @@ impl MiFareDESFireHandler {
                 }
             }
         } else {
-            context
-                .send_found_unknown_nfc_card(card_id, "Generic NFC Card".to_owned())
-                .await?;
+            if self.is_writeable().unwrap_or(false) {
+                context
+                    .send_found_unknown_nfc_card(card_id, "MiFare DESFire Card".to_owned())
+                    .await?;
+            } else {
+                context
+                    .send_found_unknown_nfc_card(card_id, "Generic NFC Card".to_owned())
+                    .await?;
+            }
             return Ok(());
         }
 

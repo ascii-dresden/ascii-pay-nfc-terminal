@@ -94,12 +94,14 @@ impl ApplicationResponseContext {
         let mut req = crate::grpc::authentication::AuthenticateBarcodeRequest::new();
         req.set_code(code);
 
+        info!("authenticate_barcode: {:?}", req);
         let res = self
             .grpc_client
             .lock()
             .await
             .authenticate_barcode_async(&req)?
             .await?;
+        info!("    -> {:?}", res);
         Ok((res.get_tokenType(), res.get_token().to_owned()))
     }
 
@@ -110,12 +112,14 @@ impl ApplicationResponseContext {
         let mut req = crate::grpc::authentication::AuthenticateNfcTypeRequest::new();
         req.set_card_id(card_id);
 
+        info!("authenticate_nfc_type: {:?}", req);
         let res = self
             .grpc_client
             .lock()
             .await
             .authenticate_nfc_type_async(&req)?
             .await?;
+        info!("    -> {:?}", res);
         Ok((res.get_card_id().to_owned(), res.get_tokenType()))
     }
 
@@ -126,12 +130,14 @@ impl ApplicationResponseContext {
         let mut req = crate::grpc::authentication::AuthenticateNfcGenericRequest::new();
         req.set_card_id(card_id);
 
+        info!("authenticate_nfc_generic: {:?}", req);
         let res = self
             .grpc_client
             .lock()
             .await
             .authenticate_nfc_generic_async(&req)?
             .await?;
+        info!("    -> {:?}", res);
         Ok((
             res.get_card_id().to_owned(),
             res.get_tokenType(),
@@ -148,12 +154,14 @@ impl ApplicationResponseContext {
         req.set_card_id(card_id);
         req.set_ek_rndB(utils::bytes_to_string(ek_rndB));
 
+        info!("authenticate_nfc_mifare_desfire_phase1: {:?}", req);
         let res = self
             .grpc_client
             .lock()
             .await
             .authenticate_nfc_mifare_desfire_phase1_async(&req)?
             .await?;
+        info!("    -> {:?}", res);
         Ok((
             res.get_card_id().to_owned(),
             utils::str_to_bytes(res.get_dk_rndA_rndBshifted()),
@@ -171,12 +179,14 @@ impl ApplicationResponseContext {
         req.set_dk_rndA_rndBshifted(utils::bytes_to_string(dk_rndA_rndBshifted));
         req.set_ek_rndAshifted_card(utils::bytes_to_string(ek_rndAshifted_card));
 
+        info!("authenticate_nfc_mifare_desfire_phase2: {:?}", req);
         let res = self
             .grpc_client
             .lock()
             .await
             .authenticate_nfc_mifare_desfire_phase2_async(&req)?
             .await?;
+        info!("    -> {:?}", res);
         Ok((
             res.get_card_id().to_owned(),
             utils::str_to_bytes(res.get_session_key()),
@@ -194,12 +204,14 @@ impl ApplicationResponseContext {
         req.set_card_id(card_id);
         req.set_account_id(account_id.to_string());
 
+        info!("authenticate_nfc_generic_init_card: {:?}", req);
         let res = self
             .grpc_client
             .lock()
             .await
             .authenticate_nfc_generic_init_card_async(&req)?
             .await?;
+        info!("    -> {:?}", res);
         Ok(res.get_card_id().to_owned())
     }
 
@@ -213,12 +225,14 @@ impl ApplicationResponseContext {
         req.set_card_id(card_id);
         req.set_account_id(account_id.to_string());
 
+        info!("authenticate_nfc_mifare_desfire_init_card: {:?}", req);
         let res = self
             .grpc_client
             .lock()
             .await
             .authenticate_nfc_mifare_desfire_init_card_async(&req)?
             .await?;
+        info!("    -> {:?}", res);
         Ok((
             res.get_card_id().to_owned(),
             utils::str_to_bytes(res.get_key()),
@@ -286,7 +300,7 @@ impl Application {
                     .cert(cert, private_key)
                     .build(),
             );
-
+        // let ch = ChannelBuilder::new(env).connect("10.3.141.97:8081");
         let client = AsciiPayAuthenticationClient::new(ch);
 
         Self {
