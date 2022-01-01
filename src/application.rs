@@ -26,6 +26,8 @@ enum ApplicationCommand {
     RequestReboot,
     RegisterNfcCard { account_id: Uuid },
     NfcCardRemoved,
+    RegisterNfcCardSuccessful,
+    Error { source: String, message: String },
     RequestStatusInformation,
 }
 
@@ -73,6 +75,20 @@ impl ApplicationResponseContext {
     pub async fn send_nfc_card_removed(&self) -> ServiceResult<()> {
         self.sender
             .send(ApplicationCommand::NfcCardRemoved)
+            .await
+            .map_err(ServiceError::from)
+    }
+
+    pub async fn send_register_nfc_card_successful(&self) -> ServiceResult<()> {
+        self.sender
+            .send(ApplicationCommand::RegisterNfcCardSuccessful)
+            .await
+            .map_err(ServiceError::from)
+    }
+
+    pub async fn send_error(&self, source: String, message: String) -> ServiceResult<()> {
+        self.sender
+            .send(ApplicationCommand::Error { source, message })
             .await
             .map_err(ServiceError::from)
     }
@@ -284,25 +300,28 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn new() -> Self {
+    pub fn new(isDemo: bool) -> Self {
         let (tx, rx) = mpsc::channel(32);
         let env = Arc::new(EnvBuilder::new().build());
 
-        let root_cert = include_bytes!("../certificates/root.pem").to_vec();
-        let cert = include_bytes!("../certificates/client.crt").to_vec();
-        let private_key = include_bytes!("../certificates/ascii-pay-client.pem").to_vec();
-        let ch = ChannelBuilder::new(env)
-            .default_authority("secure-pay.ascii.coffee")
-            .secure_connect(
-                "secure-pay.ascii.coffee:443",
-                ChannelCredentialsBuilder::new()
-                    .root_cert(root_cert)
-                    .cert(cert, private_key)
-                    .build(),
-            );
-        // let ch = ChannelBuilder::new(env).connect("10.3.141.97:8081");
-        let client = AsciiPayAuthenticationClient::new(ch);
+        let ch = if isDemo {
+            ChannelBuilder::new(env).connect("grpc-pay.ascii.local:8642")
+        } else {
+            let root_cert = include_bytes!("../certificates/root.pem").to_vec();
+            let cert = include_bytes!("../certificates/client.crt").to_vec();
+            let private_key = include_bytes!("../certificates/ascii-pay-client.pem").to_vec();
+            ChannelBuilder::new(env)
+                .default_authority("secure-pay.ascii.coffee")
+                .secure_connect(
+                    "secure-pay.ascii.coffee:443",
+                    ChannelCredentialsBuilder::new()
+                        .root_cert(root_cert)
+                        .cert(cert, private_key)
+                        .build(),
+                )
+        };
 
+        let client = AsciiPayAuthenticationClient::new(ch);
         Self {
             command_sender: tx,
             command_recv: rx,
@@ -361,7 +380,7 @@ impl Application {
                     }
                 }
                 ApplicationCommand::FoundUnknownNfcCard { id, name } => {
-                    info!("RequestAccountAccessToken({}, {})", id, name);
+                    info!("FoundUnknownNfcCard({}, {})", id, name);
                     if let Some(sender) = self.websocket_sender.as_ref() {
                         sender
                             .send(WebsocketResponseMessage::FoundUnknownNfcCard { id, name })
@@ -370,7 +389,7 @@ impl Application {
                     }
                 }
                 ApplicationCommand::FoundProductId { product_id } => {
-                    info!("RequestAccountAccessToken({})", product_id);
+                    info!("FoundProductId({})", product_id);
                     if let Some(sender) = self.websocket_sender.as_ref() {
                         sender
                             .send(WebsocketResponseMessage::FoundProductId { product_id })
@@ -379,7 +398,7 @@ impl Application {
                     }
                 }
                 ApplicationCommand::FoundAccountAccessToken { access_token } => {
-                    info!("RequestAccountAccessToken()");
+                    info!("FoundAccountAccessToken()");
                     if let Some(sender) = self.websocket_sender.as_ref() {
                         sender
                             .send(WebsocketResponseMessage::FoundAccountAccessToken {
@@ -421,7 +440,24 @@ impl Application {
                             .unwrap();
                     }
                 }
-
+                ApplicationCommand::RegisterNfcCardSuccessful {} => {
+                    info!("RegisterNfcCardSuccessful()");
+                    if let Some(sender) = self.websocket_sender.as_ref() {
+                        sender
+                            .send(WebsocketResponseMessage::RegisterNfcCardSuccessful)
+                            .await
+                            .unwrap();
+                    }
+                }
+                ApplicationCommand::Error { source, message } => {
+                    info!("NfcCardRemoved()");
+                    if let Some(sender) = self.websocket_sender.as_ref() {
+                        sender
+                            .send(WebsocketResponseMessage::Error { source, message })
+                            .await
+                            .unwrap();
+                    }
+                }
                 ApplicationCommand::RequestStatusInformation => {
                     info!("RequestStatusInformation()");
 
@@ -435,11 +471,5 @@ impl Application {
                 }
             }
         }
-    }
-}
-
-impl Default for Application {
-    fn default() -> Self {
-        Self::new()
     }
 }

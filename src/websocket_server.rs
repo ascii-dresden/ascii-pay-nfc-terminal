@@ -29,6 +29,8 @@ pub enum WebsocketResponseMessage {
     FoundProductId { product_id: Uuid },
     FoundAccountAccessToken { access_token: String },
     NfcCardRemoved,
+    RegisterNfcCardSuccessful,
+    Error { source: String, message: String },
     StatusInformation { status: String },
 }
 

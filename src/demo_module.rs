@@ -87,7 +87,10 @@ async fn run_loop(context: ApplicationResponseContext, current_cards: Arc<Mutex<
         while let Some(code) = reader.get_next_code().await.unwrap() {
             let code = code.trim().to_owned();
             if let Some(account_number) = check_code_for_account_number(&code) {
-                context.send_found_account_number(account_number).await.unwrap();
+                context
+                    .send_found_account_number(account_number)
+                    .await
+                    .unwrap();
             } else if code.starts_with("nfc") {
                 let mut current_cards = current_cards.lock().await;
 
@@ -142,4 +145,6 @@ async fn handle_card_init(context: &ApplicationResponseContext, card: &str, acco
         .authenticate_nfc_generic_init_card(card_id, account_id)
         .await
         .unwrap();
+
+    context.send_register_nfc_card_successful().await.unwrap();
 }

@@ -35,8 +35,9 @@ async fn main() {
     dotenv::dotenv().ok();
     std::env::set_var("RUST_LOG", "ascii_pay_authentication_proxy=info");
     env_logger::init();
+    let isDemo = std::env::args().any(|arg| arg == "--demo");
 
-    let mut application = Application::new();
+    let mut application = Application::new(isDemo);
 
     let websocket_server = WebsocketServer::new(
         application.get_request_context(),
@@ -44,7 +45,6 @@ async fn main() {
     );
     tokio::spawn(websocket_server.run());
 
-    let isDemo = std::env::args().any(|arg| arg == "--demo");
     if isDemo {
         let demo_module = DemoModule::new(
             application.get_response_context(),

@@ -185,8 +185,13 @@ async fn handle_card_init(
     account_id: Uuid,
 ) -> NfcCard {
     let handler = NfcCardHandlerWrapper::new(card);
-    if let Err(e) = handler.handle_card_init(context, account_id).await {
-        error!("Cannot authenticate card: {:?}", e);
+    match handler.handle_card_init(context, account_id).await {
+        Ok(_) => {
+            context.send_register_nfc_card_successful().await.unwrap();
+        }
+        Err(e) => {
+            error!("Cannot authenticate card: {:?}", e);
+        }
     }
     handler.finish()
 }
