@@ -132,6 +132,6 @@ impl From<crate::nfc_module::nfc::NfcError> for ServiceError {
 #[cfg(target_os = "linux")]
 impl From<pcsc::Error> for ServiceError {
     fn from(error: pcsc::Error) -> Self {
-        ServiceError::InternalServerError("NFC error", format!("{}", error))
+        ServiceError::InternalError("NFC error", format!("{}", error))
     }
 }
