@@ -87,8 +87,9 @@ async fn accept_connection(
     peer: SocketAddr,
     stream: TcpStream,
 ) {
-    if let Err(e) = handle_connection(&peer_map, context, peer, stream).await {
-        error!("Error processing connection: {}", e)
+    if let Err(e) = handle_connection(&peer_map, &context, peer, stream).await {
+        error!("Error processing connection: {}", e);
+        context.error("WebSocket", &format!("{}", e)).await;
     }
 
     peer_map.lock().await.remove(&peer);
@@ -96,7 +97,7 @@ async fn accept_connection(
 
 async fn handle_connection(
     peer_map: &PeerMap,
-    context: ApplicationRequestContext,
+    context: &ApplicationRequestContext,
     peer: SocketAddr,
     stream: TcpStream,
 ) -> ServiceResult<()> {
@@ -125,17 +126,23 @@ async fn handle_connection(
             continue;
         }
 
-        let request = serde_json::from_slice::<WebsocketRequestMessage>(&msg_data)?;
+        let request = serde_json::from_slice::<WebsocketRequestMessage>(&msg_data);
         match request {
-            WebsocketRequestMessage::RequestAccountAccessToken {} => {
-                context.send_request_account_access_token().await?
+            Ok(WebsocketRequestMessage::RequestAccountAccessToken {}) => {
+                context.send_request_account_access_token().await
             }
-            WebsocketRequestMessage::RequestReboot {} => context.send_request_reboot().await?,
-            WebsocketRequestMessage::RegisterNfcCard { account_id } => {
-                context.send_register_nfc_card(account_id).await?
+            Ok(WebsocketRequestMessage::RequestReboot {}) => context.send_request_reboot().await,
+            Ok(WebsocketRequestMessage::RegisterNfcCard { account_id }) => {
+                context.send_register_nfc_card(account_id).await
             }
-            WebsocketRequestMessage::RequestStatusInformation => {
-                context.request_status_information().await?
+            Ok(WebsocketRequestMessage::RequestStatusInformation) => {
+                context.request_status_information().await
+            }
+            Err(e) => {
+                error!("{}", e);
+                context
+                    .error("WebSocket", "Could not parse WebSocket message!")
+                    .await;
             }
         }
     }

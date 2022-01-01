@@ -41,15 +41,13 @@ impl QrModule {
 
         while let Some(code) = reader.get_next_code().await? {
             if let Some(account_number) = check_code_for_account_number(&code) {
-                self.context
-                    .send_found_account_number(account_number)
-                    .await?;
+                self.context.send_found_account_number(account_number).await;
             } else if let Ok((token_type, token)) =
                 self.context.authenticate_barcode(code.clone()).await
             {
                 self.context.send_token(token_type, token).await?;
             } else {
-                self.context.send_found_unknown_barcode(code).await?;
+                self.context.send_found_unknown_barcode(code).await;
             }
         }
 

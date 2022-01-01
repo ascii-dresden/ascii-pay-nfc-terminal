@@ -82,7 +82,21 @@ async fn run_spawn(
                     };
 
                     current_cards.insert(key, card);
+                } else {
+                    match command {
+                        NfcCommand::RegisterNfcCard { account_id } => {
+                            context.send_error("NFC Reader", "No nfc card found!").await;
+                        }
+                        _ => {}
+                    };
                 }
+            } else {
+                match command {
+                    NfcCommand::RegisterNfcCard { account_id } => {
+                        context.send_error("NFC Reader", "No nfc card found!").await;
+                    }
+                    _ => {}
+                };
             }
         }
     }
@@ -159,7 +173,7 @@ fn run_loop(context: ApplicationResponseContext, current_cards: CardMapMutex) {
                         if current_cards.contains_key(&name) {
                             current_cards.remove(&name);
                             info!("Remove nfc card");
-                            rt.block_on(context.send_nfc_card_removed()).unwrap();
+                            rt.block_on(context.send_nfc_card_removed());
                         }
                     }
                 }
@@ -175,6 +189,9 @@ async fn handle_card_authentication(
     let handler = NfcCardHandlerWrapper::new(card);
     if let Err(e) = handler.handle_card_authentication(context).await {
         error!("Cannot authenticate card: {:?}", e);
+        context
+            .send_error("NFC Reader", "Could not authenticate NFC card!")
+            .await
     }
     handler.finish()
 }
@@ -187,10 +204,13 @@ async fn handle_card_init(
     let handler = NfcCardHandlerWrapper::new(card);
     match handler.handle_card_init(context, account_id).await {
         Ok(_) => {
-            context.send_register_nfc_card_successful().await.unwrap();
+            context.send_register_nfc_card_successful().await;
         }
         Err(e) => {
-            error!("Cannot authenticate card: {:?}", e);
+            error!("Could not register nfc card: {}", e);
+            context
+                .send_error("NFC Reader", "Could not register NFC card!")
+                .await
         }
     }
     handler.finish()

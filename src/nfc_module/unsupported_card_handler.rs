@@ -50,6 +50,10 @@ impl UnsupportedCardHandler {
         info!("    be added via the generic MiFareClassicHandler by adding this ATR:");
         info!("    {}", utils::bytes_to_bytestring(&atr));
 
+        context
+            .send_error("NFC Reader", "NFC Card type ist currently not supported!")
+            .await;
+
         Ok(())
     }
 

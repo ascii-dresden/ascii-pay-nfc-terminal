@@ -1,7 +1,9 @@
-use log::info;
+use log::{error, info};
 use uuid::Uuid;
 
-use crate::{application::ApplicationResponseContext, ServiceError, ServiceResult};
+use crate::{
+    application::ApplicationResponseContext, RemoteErrorType, ServiceError, ServiceResult,
+};
 
 use super::nfc::{utils, NfcCard};
 
@@ -57,8 +59,8 @@ impl GenericNfcHandler {
     ) -> ServiceResult<()> {
         let card_id = self.get_card_id()?;
 
-        if let Ok((card_id, nfc_card_type)) = context.authenticate_nfc_type(card_id.clone()).await {
-            match nfc_card_type {
+        match context.authenticate_nfc_type(card_id.clone()).await {
+            Ok((card_id, nfc_card_type)) => match nfc_card_type {
                 crate::grpc::authentication::NfcCardType::GENERIC => {
                     let (card_id, token_type, token) =
                         context.authenticate_nfc_generic(card_id).await?;
@@ -66,16 +68,27 @@ impl GenericNfcHandler {
                     context.send_token(token_type, token).await?;
                 }
                 _ => {
-                    return Err(ServiceError::InternalServerError(
+                    return Err(ServiceError::InternalError(
                         "NFC card type miss match",
                         String::new(),
                     ));
                 }
+            },
+            Err(err) => {
+                if let ServiceError::RemoteError(ref errorType, _) = err {
+                    if *errorType == RemoteErrorType::NotFound {
+                        context
+                            .send_found_unknown_nfc_card(card_id, "Generic NFC Card".to_owned())
+                            .await;
+                    } else {
+                        error!("{}", err);
+                        context.send_error("GRPC Service", err.to_string()).await;
+                    }
+                } else {
+                    error!("{}", err);
+                    context.send_error("GRPC Service", err.to_string()).await;
+                }
             }
-        } else {
-            context
-                .send_found_unknown_nfc_card(card_id, "Generic NFC Card".to_owned())
-                .await?;
         }
 
         Ok(())
