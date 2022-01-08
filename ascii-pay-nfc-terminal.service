@@ -1,0 +1,12 @@
+[Unit]
+Description=ascii-pay-nfc-terminal
+
+[Service]
+Type=exec
+Restart=always
+User=pi
+ExecStart=/home/pi/projects/ascii-pay-nfc-terminal/target/release/ascii-pay-nfc-terminal
+WorkingDirectory=/home/pi/projects/ascii-pay-nfc-terminal
+
+[Install]
+WantedBy=multi-user.target

@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ascii-pay-authentication-proxy"
+name = "ascii-pay-nfc-terminal"
 version = "0.1.0"
 dependencies = [
  "base64 0.11.0",

@@ -8,6 +8,6 @@ fn compile_protobuf() {
 }
 
 fn main() {
-    shadow_rs::new().unwrap();
+    shadow_rs::new().expect("Failed to generate build information!");
     compile_protobuf();
 }

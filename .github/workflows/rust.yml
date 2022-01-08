@@ -4,22 +4,27 @@ on: [push]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v1
+      - uses: actions/checkout@v1
 
-    - name: Install dependencies
-      run: sudo ./install.sh
+      - name: Install dependencies
+        run: sudo ./install.sh
 
-    - name: Install Rust stable
-      run: |
-        rustup toolchain update --no-self-update stable
-        rustup default stable
+      - name: Install Rust stable
+        run: |
+          rustup toolchain update --no-self-update stable
+          rustup default stable
 
-    - name: Build
-      run: cargo build --verbose
+      - name: Create dummy certificates
+        run: |
+          touch certificates/root.pem
+          touch certificates/client.crt
+          touch certificates/ascii-pay-client.pem
 
-    - name: Run tests
-      run: cargo test --verbose
+      - name: Build
+        run: cargo build --verbose
+
+      - name: Run tests
+        run: cargo test --verbose
