@@ -33,7 +33,7 @@ use tokio::signal;
 #[tokio::main(worker_threads = 4)]
 async fn main() {
     dotenv::dotenv().ok();
-    std::env::set_var("RUST_LOG", "ascii_pay_authentication_proxy=info");
+    std::env::set_var("RUST_LOG", "ascii_pay_nfc_terminal=info");
     env_logger::init();
     let isDemo = std::env::args().any(|arg| arg == "--demo");
 
