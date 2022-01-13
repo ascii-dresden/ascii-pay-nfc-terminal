@@ -232,7 +232,13 @@ impl MiFareDESFireHandler {
         &self,
         context: &ApplicationResponseContext,
     ) -> ServiceResult<()> {
-        info!("Mensa Data: {:?}", self.read_mensa_data());
+        if let Ok((balance, last_transaction)) = self.read_mensa_data() {
+            info!(
+                "Mensa:\nBalance: {:.2} €\nLast transaction: {:.2} €",
+                (balance as f32) / 100.0,
+                (last_transaction as f32) / 100.0
+            );
+        }
         let card_id = self.get_card_id()?;
 
         match context.authenticate_nfc_type(card_id.clone()).await {
@@ -310,7 +316,7 @@ impl MiFareDESFireHandler {
     ) -> ServiceResult<()> {
         let card_id = self.get_card_id()?;
 
-        if self.is_writeable()? {
+        if self.is_writeable().unwrap_or(false) {
             let (card_id, key) = context
                 .authenticate_nfc_mifare_desfire_init_card(card_id, account_id)
                 .await?;

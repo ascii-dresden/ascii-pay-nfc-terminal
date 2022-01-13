@@ -13,6 +13,7 @@ pub enum Encryption {
     MACed(Vec<u8>),
     Encrypted(Vec<u8>),
 }
+
 impl Encryption {
     pub fn encrypt(&self, data: &[u8]) -> NfcResult<Vec<u8>> {
         Ok(match self {
@@ -30,6 +31,7 @@ impl Encryption {
             }
         })
     }
+
     pub fn decrypt(&self, data: &[u8]) -> NfcResult<Vec<u8>> {
         Ok(match self {
             Encryption::PlainText => data.iter().copied().collect(),
@@ -112,6 +114,7 @@ pub enum Status {
     FileNotFound,
     FileIntegrityError,
 }
+
 impl Status {
     pub fn parse(code: u8) -> Status {
         match code {
@@ -140,7 +143,8 @@ impl Status {
             _ => panic!("Unknown status code: {}", code),
         }
     }
-    pub fn to_result_data<T>(self, value: T) -> NfcResult<T> {
+
+    pub fn to_result_data<T>(self, value: T, command_name: &str) -> NfcResult<T> {
         let result = match self {
             Status::OperationOk | Status::NoChanges | Status::AdditionalFrame => Ok(value),
             Status::FileIntegrityError
@@ -154,13 +158,17 @@ impl Status {
         };
 
         if result.is_err() {
-            error!("NFC commuincation error: {:?}", self);
+            error!(
+                "NFC commuincation error: Command: {:?}, Error: {:?}",
+                command_name, self
+            );
         }
 
         result
     }
-    pub fn to_result(self) -> NfcResult<()> {
-        self.to_result_data(())
+
+    pub fn to_result(self, command_name: &str) -> NfcResult<()> {
+        self.to_result_data((), command_name)
     }
 }
 
@@ -174,6 +182,7 @@ pub struct VersionInformation {
     pub storage_size: u8,
     pub communication_protocol: u8,
 }
+
 impl Serializable for VersionInformation {
     fn from_bytes(cursor: &mut Cursor<&[u8]>) -> NfcResult<Self> {
         Ok(VersionInformation {
@@ -197,6 +206,7 @@ pub struct Version {
     pub calendar_week_of_production: u8,
     pub year_of_production: u8,
 }
+
 impl Serializable for Version {
     fn from_bytes(cursor: &mut Cursor<&[u8]>) -> NfcResult<Self> {
         Ok(Version {
@@ -223,6 +233,7 @@ impl Serializable for Version {
         })
     }
 }
+
 impl Version {
     pub fn id(&self) -> Vec<u8> {
         let mut data = Vec::new();
@@ -255,6 +266,7 @@ pub enum KeySettingsAccessRights {
     SameKey,
     KeysFrozen,
 }
+
 impl Serializable for KeySettingsAccessRights {
     fn from_bytes(cursor: &mut Cursor<&[u8]>) -> NfcResult<Self> {
         Ok(match cursor.read_u8()? & 0xF0 {
@@ -372,6 +384,7 @@ pub enum FileSettingsAccessRightsKey {
     Free,
     Deny,
 }
+
 impl Serializable for FileSettingsAccessRightsKey {
     fn from_bytes(cursor: &mut Cursor<&[u8]>) -> NfcResult<Self> {
         Ok(match cursor.read_u8()? & 0x0F {
@@ -426,6 +439,7 @@ pub enum FileSettingsCommunication {
     MACed,
     Enciphered,
 }
+
 impl Serializable for FileSettingsCommunication {
     fn from_bytes(cursor: &mut Cursor<&[u8]>) -> NfcResult<Self> {
         match cursor.read_u8()? & 0x03 {
@@ -455,6 +469,7 @@ pub struct FileSettingsAccessRights {
     pub read_write: FileSettingsAccessRightsKey,
     pub change_access: FileSettingsAccessRightsKey,
 }
+
 impl Serializable for FileSettingsAccessRights {
     fn from_bytes(cursor: &mut Cursor<&[u8]>) -> NfcResult<Self> {
         let ls_byte = cursor.read_u8()?;
@@ -467,6 +482,7 @@ impl Serializable for FileSettingsAccessRights {
             change_access: FileSettingsAccessRightsKey::from_byte(ls_byte)?,
         })
     }
+
     fn to_bytes(&self, bytes: &mut Vec<u8>) -> NfcResult<()> {
         let read: u8 = self.read.to_byte()?;
         let write: u8 = self.write.to_byte()?;
@@ -506,6 +522,7 @@ pub enum FileSettings {
         curr_no_records: u32,
     },
 }
+
 impl FileSettings {
     fn data_file_from_bytes(cursor: &mut Cursor<&[u8]>) -> NfcResult<Self> {
         Ok(FileSettings::DataFile {
@@ -536,6 +553,7 @@ impl FileSettings {
         })
     }
 }
+
 impl Serializable for FileSettings {
     fn from_bytes(cursor: &mut Cursor<&[u8]>) -> NfcResult<Self> {
         match cursor.read_u8()? {

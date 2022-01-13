@@ -63,7 +63,7 @@ impl MiFareDESFireCard {
     #[allow(non_snake_case)]
     pub fn authenticate(&self, key_no: u8, key: &[u8]) -> NfcResult<Vec<u8>> {
         let (status, ek_rndB) = self.transmit(0x0A, &[key_no])?;
-        status.to_result()?;
+        status.to_result("authenticate_phase1")?;
         let rndB = mifare_utils::tdes_decrypt(key, &ek_rndB)?;
 
         let mut rndBshifted: Vec<u8> = Vec::with_capacity(8);
@@ -83,7 +83,7 @@ impl MiFareDESFireCard {
         let dk_rndA_rndBshifted = mifare_utils::tdes_encrypt(key, &rndA_rndBshifted)?;
 
         let (status, ek_rndAshifted_card) = self.transmit(0xAF, &dk_rndA_rndBshifted)?;
-        status.to_result()?;
+        status.to_result("authenticate_phase2")?;
         let rndAshifted_card = mifare_utils::tdes_decrypt(key, &ek_rndAshifted_card)?;
 
         if rndAshifted != rndAshifted_card {
@@ -104,7 +104,7 @@ impl MiFareDESFireCard {
     #[allow(non_snake_case)]
     pub fn authenticate_phase1(&self, key_no: u8) -> NfcResult<Vec<u8>> {
         let (status, ek_rndB) = self.transmit(0x0A, &[key_no])?;
-        status.to_result()?;
+        status.to_result("authenticate_phase1")?;
 
         Ok(ek_rndB)
     }
@@ -112,7 +112,7 @@ impl MiFareDESFireCard {
     #[allow(non_snake_case)]
     pub fn authenticate_phase2(&self, dk_rndA_rndBshifted: &[u8]) -> NfcResult<Vec<u8>> {
         let (status, ek_rndAshifted_card) = self.transmit(0xAF, dk_rndA_rndBshifted)?;
-        status.to_result()?;
+        status.to_result("authenticate_phase2")?;
 
         Ok(ek_rndAshifted_card)
     }
@@ -125,12 +125,12 @@ impl MiFareDESFireCard {
 
         let (status, _) = self.transmit(0x54, &data)?;
 
-        status.to_result()
+        status.to_result("change_key_settings")
     }
 
     pub fn get_key_settings(&self) -> NfcResult<(KeySettings, u8)> {
         let (status, result) = self.transmit(0x45, &[])?;
-        status.to_result()?;
+        status.to_result("get_key_settings")?;
 
         let mut cursor = Cursor::new(result.as_slice());
         let key_settings = KeySettings::from_bytes(&mut cursor)?;
@@ -172,12 +172,12 @@ impl MiFareDESFireCard {
 
         let (status, _) = self.transmit(0xC4, &bytes)?;
 
-        status.to_result()
+        status.to_result("change_key")
     }
 
     pub fn get_key_version(&self, key_no: u8) -> NfcResult<u8> {
         let (status, result) = self.transmit(0x64, &[key_no])?;
-        status.to_result_data(result[0])
+        status.to_result_data(result[0], "get_key_version")
     }
 
     /**
@@ -195,22 +195,22 @@ impl MiFareDESFireCard {
             &[aid[0], aid[1], aid[2], key_settings.to_byte()?, num_of_keys],
         )?;
 
-        status.to_result()
+        status.to_result("create_application")
     }
 
     pub fn delete_application(&self, aid: [u8; 3]) -> NfcResult<()> {
         let (status, _) = self.transmit(0xDA, &aid)?;
 
-        status.to_result()
+        status.to_result("delete_application")
     }
 
     pub fn get_application_ids(&self) -> NfcResult<Vec<[u8; 3]>> {
         let (mut status, mut result) = self.transmit(0x6A, &[])?;
-        status.to_result()?;
+        status.to_result("get_application_ids")?;
         while status == Status::AdditionalFrame {
             let (s, r) = self.transmit(STATUS_ADDITIONAL_FRAME, &[])?;
             status = s;
-            status.to_result()?;
+            status.to_result("get_application_ids+")?;
             result.extend(r);
         }
 
@@ -229,22 +229,22 @@ impl MiFareDESFireCard {
     pub fn select_application(&self, aid: [u8; 3]) -> NfcResult<()> {
         let (status, _) = self.transmit(0x5A, &aid)?;
 
-        status.to_result()
+        status.to_result("select_application")
     }
 
     pub fn format_picc(&self) -> NfcResult<()> {
         let (status, _) = self.transmit(0xFC, &[])?;
 
-        status.to_result()
+        status.to_result("format_picc")
     }
 
     pub fn get_version(&self) -> NfcResult<Version> {
         let (mut status, mut result) = self.transmit(0x60, &[])?;
-        status.to_result()?;
+        status.to_result("get_version")?;
         while status == Status::AdditionalFrame {
             let (s, r) = self.transmit(STATUS_ADDITIONAL_FRAME, &[])?;
             status = s;
-            status.to_result()?;
+            status.to_result("get_version+")?;
             result.extend(r);
         }
 
@@ -257,14 +257,14 @@ impl MiFareDESFireCard {
 
     pub fn get_file_ids(&self) -> NfcResult<Vec<u8>> {
         let (status, result) = self.transmit(0x6F, &[])?;
-        status.to_result()?;
+        status.to_result("get_file_ids")?;
 
         Ok(result)
     }
 
     pub fn get_file_settings(&self, file_no: u8) -> NfcResult<FileSettings> {
         let (status, result) = self.transmit(0xF5, &[file_no])?;
-        status.to_result()?;
+        status.to_result("get_file_settings")?;
 
         FileSettings::from_slice(&result)
     }
@@ -290,7 +290,7 @@ impl MiFareDESFireCard {
 
         let (status, _) = self.transmit(0x5F, &bytes)?;
 
-        status.to_result()
+        status.to_result("change_file_settings")
     }
 
     pub fn create_std_data_file(
@@ -309,7 +309,7 @@ impl MiFareDESFireCard {
 
         let (status, _) = self.transmit(0xCD, &bytes)?;
 
-        status.to_result()
+        status.to_result("create_std_data_file")
     }
 
     pub fn create_backup_data_file(
@@ -328,7 +328,7 @@ impl MiFareDESFireCard {
 
         let (status, _) = self.transmit(0xCB, &bytes)?;
 
-        status.to_result()
+        status.to_result("create_backup_data_file")
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -354,7 +354,7 @@ impl MiFareDESFireCard {
 
         let (status, _) = self.transmit(0xCC, &bytes)?;
 
-        status.to_result()
+        status.to_result("create_value_file")
     }
 
     pub fn create_linear_record_file(
@@ -375,7 +375,7 @@ impl MiFareDESFireCard {
 
         let (status, _) = self.transmit(0xC1, &bytes)?;
 
-        status.to_result()
+        status.to_result("create_linear_record_file")
     }
 
     pub fn create_cyclic_record_file(
@@ -396,7 +396,7 @@ impl MiFareDESFireCard {
 
         let (status, _) = self.transmit(0xC0, &bytes)?;
 
-        status.to_result()
+        status.to_result("create_cyclic_record_file")
     }
 
     pub fn delete_file(&self, file_no: u8) -> NfcResult<()> {
@@ -406,7 +406,7 @@ impl MiFareDESFireCard {
 
         let (status, _) = self.transmit(0xDF, &bytes)?;
 
-        status.to_result()
+        status.to_result("delete_file")
     }
 
     pub fn read_data(
@@ -423,11 +423,11 @@ impl MiFareDESFireCard {
         bytes.write_u24::<LittleEndian>(length)?;
 
         let (mut status, mut result) = self.transmit(0xBD, &bytes)?;
-        status.to_result()?;
+        status.to_result("read_data")?;
         while status == Status::AdditionalFrame {
             let (s, r) = self.transmit(STATUS_ADDITIONAL_FRAME, &[])?;
             status = s;
-            status.to_result()?;
+            status.to_result("read_data+")?;
             result.extend(r);
         }
 
@@ -455,7 +455,7 @@ impl MiFareDESFireCard {
         offset += length;
 
         let (mut status, _) = self.transmit(0x3D, &bytes)?;
-        status.to_result()?;
+        status.to_result("write_data")?;
         while status == Status::AdditionalFrame {
             let length = std::cmp::min(d.len() - offset, 59);
             if length == 0 {
@@ -463,7 +463,7 @@ impl MiFareDESFireCard {
             }
             let (s, r) = self.transmit(STATUS_ADDITIONAL_FRAME, &d[offset..(offset + length)])?;
             status = s;
-            status.to_result()?;
+            status.to_result("write_data+")?;
             offset += length;
         }
 
@@ -476,7 +476,7 @@ impl MiFareDESFireCard {
         bytes.write_u8(file_no)?;
 
         let (status, result) = self.transmit(0x6C, &bytes)?;
-        status.to_result()?;
+        status.to_result("get_value")?;
 
         let result = encryption.decrypt(&result)?;
 
@@ -499,7 +499,7 @@ impl MiFareDESFireCard {
 
         let (status, _) = self.transmit(0x0C, &bytes)?;
 
-        status.to_result()
+        status.to_result("credit")
     }
 
     pub fn debit(&self, file_no: u8, value: u32, encryption: Encryption) -> NfcResult<()> {
@@ -515,7 +515,7 @@ impl MiFareDESFireCard {
 
         let (status, _) = self.transmit(0xDC, &bytes)?;
 
-        status.to_result()
+        status.to_result("debit")
     }
 
     pub fn limited_credit(&self, file_no: u8, value: u32, encryption: Encryption) -> NfcResult<()> {
@@ -531,7 +531,7 @@ impl MiFareDESFireCard {
 
         let (status, _) = self.transmit(0x1C, &bytes)?;
 
-        status.to_result()
+        status.to_result("limited_credit")
     }
 
     pub fn write_record(
@@ -555,7 +555,7 @@ impl MiFareDESFireCard {
         offset += length;
 
         let (mut status, _) = self.transmit(0x3B, &bytes)?;
-        status.to_result()?;
+        status.to_result("write_record")?;
         while status == Status::AdditionalFrame {
             let length = std::cmp::min(d.len() - offset, 59);
             if length == 0 {
@@ -564,7 +564,7 @@ impl MiFareDESFireCard {
             let (s, r) = self.transmit(STATUS_ADDITIONAL_FRAME, &d[offset..(offset + length)])?;
             offset += length;
             status = s;
-            status.to_result()?;
+            status.to_result("write_record+")?;
         }
 
         Ok(())
@@ -584,11 +584,11 @@ impl MiFareDESFireCard {
         bytes.write_u24::<LittleEndian>(length)?;
 
         let (mut status, mut result) = self.transmit(0xBB, &bytes)?;
-        status.to_result()?;
+        status.to_result("read_record")?;
         while status == Status::AdditionalFrame {
             let (s, r) = self.transmit(STATUS_ADDITIONAL_FRAME, &[])?;
             status = s;
-            status.to_result()?;
+            status.to_result("read_record+")?;
             result.extend(r);
         }
 
@@ -602,19 +602,19 @@ impl MiFareDESFireCard {
 
         let (status, _) = self.transmit(0xEB, &bytes)?;
 
-        status.to_result()
+        status.to_result("clear_record_file")
     }
 
     pub fn commit_transaction(&self) -> NfcResult<()> {
         let (status, _) = self.transmit(0xC7, &[])?;
 
-        status.to_result()
+        status.to_result("commit_transaction")
     }
 
     pub fn abort_transaction(&self) -> NfcResult<()> {
         let (status, _) = self.transmit(0xA7, &[])?;
 
-        status.to_result()
+        status.to_result("abort_transaction")
     }
 }
 
