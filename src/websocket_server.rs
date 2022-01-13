@@ -26,7 +26,7 @@ pub enum WebsocketResponseMessage {
     FoundUnknownBarcode { code: String },
     FoundAccountNumber { account_number: String },
     FoundUnknownNfcCard { id: String, name: String },
-    FoundProductId { product_id: Uuid },
+    FoundProductId { product_id: String },
     FoundAccountAccessToken { access_token: String },
     NfcCardRemoved,
     RegisterNfcCardSuccessful,

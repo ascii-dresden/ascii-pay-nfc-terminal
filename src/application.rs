@@ -15,7 +15,7 @@ enum ApplicationCommand {
     FoundUnknownBarcode { code: String },
     FoundAccountNumber { account_number: String },
     FoundUnknownNfcCard { id: String, name: String },
-    FoundProductId { product_id: Uuid },
+    FoundProductId { product_id: String },
     FoundAccountAccessToken { access_token: String },
     RequestAccountAccessToken,
     RequestReboot,
@@ -68,7 +68,7 @@ impl ApplicationResponseContext {
         }
     }
 
-    pub async fn send_found_product_id(&self, product_id: Uuid) {
+    pub async fn send_found_product_id(&self, product_id: String) {
         if self
             .sender
             .send(ApplicationCommand::FoundProductId { product_id })
@@ -137,7 +137,6 @@ impl ApplicationResponseContext {
                 self.send_found_account_access_token(token).await;
             }
             crate::grpc::authentication::TokenType::PRODUCT_ID => {
-                let token = Uuid::parse_str(&token)?;
                 self.send_found_product_id(token).await;
             }
         }

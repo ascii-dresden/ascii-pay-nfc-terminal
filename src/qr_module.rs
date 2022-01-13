@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use log::{info, warn};
+use log::{error, info, warn};
 use tokio::time;
 
 use crate::{application::ApplicationResponseContext, ServiceResult};
@@ -9,7 +9,7 @@ pub struct QrModule {
     context: ApplicationResponseContext,
 }
 
-const ACCOUNT_NUMBER_PATTERN: &str = "https://pay.ascii.coffee/?code=";
+const ACCOUNT_NUMBER_PATTERN: &str = "https://pay.ascii.coffee?code=";
 pub fn check_code_for_account_number(code: &str) -> Option<String> {
     if code.starts_with(ACCOUNT_NUMBER_PATTERN) {
         return Some(code.trim_start_matches(ACCOUNT_NUMBER_PATTERN).to_owned());
@@ -29,8 +29,8 @@ impl QrModule {
         }
 
         loop {
-            if self.handle_reader().await.is_err() {
-                // Ignore error and restart
+            if let Err(e) = self.handle_reader().await {
+                error!("Error while handling qr reader: {:?}", e);
             }
             time::sleep(Duration::from_secs(1)).await;
         }
