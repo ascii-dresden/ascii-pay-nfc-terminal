@@ -77,6 +77,7 @@ async fn run_spawn(
                 }
             };
         } else {
+            #[allow(clippy::single_match)]
             match command {
                 NfcCommand::RegisterNfcCard { account_id } => {
                     context.send_error("NFC Reader", "No nfc card found!").await;

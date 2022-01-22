@@ -83,6 +83,7 @@ async fn run_spawn(
 
                     current_cards.insert(key, card);
                 } else {
+                    #[allow(clippy::single_match)]
                     match command {
                         NfcCommand::RegisterNfcCard { account_id } => {
                             context.send_error("NFC Reader", "No nfc card found!").await;
@@ -91,6 +92,7 @@ async fn run_spawn(
                     };
                 }
             } else {
+                #[allow(clippy::single_match)]
                 match command {
                     NfcCommand::RegisterNfcCard { account_id } => {
                         context.send_error("NFC Reader", "No nfc card found!").await;

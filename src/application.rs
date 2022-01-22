@@ -378,7 +378,15 @@ impl Application {
         let env = Arc::new(EnvBuilder::new().build());
 
         let ch = if isDemo {
-            ChannelBuilder::new(env).connect("grpc-pay.ascii.local:8642")
+            let root_cert = include_bytes!("../certificates/ascii-pay-root.crt").to_vec();
+            ChannelBuilder::new(env)
+                .default_authority("secure-pay.ascii.local")
+                .secure_connect(
+                    "secure-pay.ascii.local:443",
+                    ChannelCredentialsBuilder::new()
+                        .root_cert(root_cert)
+                        .build(),
+                )
         } else {
             let root_cert = include_bytes!("../certificates/root.pem").to_vec();
             let cert = include_bytes!("../certificates/client.crt").to_vec();

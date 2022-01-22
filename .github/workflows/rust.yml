@@ -22,6 +22,7 @@ jobs:
           touch certificates/root.pem
           touch certificates/client.crt
           touch certificates/ascii-pay-client.pem
+          touch certificates/ascii-pay-root.crt
 
       - name: Build
         run: cargo build --verbose

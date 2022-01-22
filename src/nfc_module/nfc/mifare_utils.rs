@@ -1,29 +1,38 @@
-use super::NfcResult;
 use block_modes::block_padding::ZeroPadding;
+use block_modes::cipher::{BlockCipher, BlockDecrypt, BlockEncrypt, NewBlockCipher};
 use block_modes::{BlockMode, Cbc};
-use des::block_cipher_trait::BlockCipher;
 use des::TdesEde2;
 use generic_array::GenericArray;
+
+use super::NfcResult;
 
 /// Communication to the mifare desfire always requires the tdes decribt
 struct MiFareTdes {
     cipher: TdesEde2,
 }
-impl BlockCipher for MiFareTdes {
-    type KeySize = <TdesEde2 as BlockCipher>::KeySize;
-    type BlockSize = <TdesEde2 as BlockCipher>::BlockSize;
-    type ParBlocks = <TdesEde2 as BlockCipher>::ParBlocks;
+
+impl NewBlockCipher for MiFareTdes {
+    type KeySize = <TdesEde2 as NewBlockCipher>::KeySize;
 
     fn new(key: &GenericArray<u8, Self::KeySize>) -> Self {
         MiFareTdes {
             cipher: TdesEde2::new(key),
         }
     }
+}
 
+impl BlockCipher for MiFareTdes {
+    type BlockSize = <TdesEde2 as BlockCipher>::BlockSize;
+    type ParBlocks = <TdesEde2 as BlockCipher>::ParBlocks;
+}
+
+impl BlockEncrypt for MiFareTdes {
     fn encrypt_block(&self, block: &mut GenericArray<u8, Self::BlockSize>) {
         self.cipher.decrypt_block(block)
     }
+}
 
+impl BlockDecrypt for MiFareTdes {
     fn decrypt_block(&self, block: &mut GenericArray<u8, Self::BlockSize>) {
         self.cipher.decrypt_block(block)
     }
