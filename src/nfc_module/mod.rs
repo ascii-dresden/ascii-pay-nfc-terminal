@@ -11,6 +11,8 @@ mod generic_nfc_handler;
 pub use generic_nfc_handler::GenericNfcHandler;
 mod mifare_desfire_handler;
 pub use mifare_desfire_handler::MiFareDESFireHandler;
+mod iso_14443_handler;
+pub use iso_14443_handler::Iso14443Handler;
 mod unsupported_card_handler;
 use tokio::runtime::Runtime;
 use tokio::task;
@@ -46,7 +48,7 @@ impl NfcModule {
     }
 
     pub async fn run(self) -> ServiceResult<()> {
-        info!("Start qr module");
+        info!("Start nfc module");
 
         let current_cards: CardMapMutex = Arc::new(Mutex::new(HashMap::new()));
 

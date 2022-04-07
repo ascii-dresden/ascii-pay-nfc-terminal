@@ -207,7 +207,7 @@ impl MiFareDESFireHandler {
         Ok(())
     }
 
-    pub fn check_combatibitility(atr: &[u8]) -> bool {
+    pub fn check_compatibility(atr: &[u8]) -> bool {
         match atr {
             b"\x3B\x81\x80\x01\x80\x80" => {
                 info!("Insert 'MiFare DESFire' card");

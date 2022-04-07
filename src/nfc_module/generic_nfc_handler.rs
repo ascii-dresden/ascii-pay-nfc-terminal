@@ -27,7 +27,7 @@ impl GenericNfcHandler {
 }
 
 impl GenericNfcHandler {
-    pub fn check_combatibitility(atr: &[u8]) -> bool {
+    pub fn check_compatibility(atr: &[u8]) -> bool {
         match atr {
             b"\x3B\x8F\x80\x01\x80\x4F\x0C\xA0\x00\x00\x03\x06\x03\x00\x01\x00\x00\x00\x00\x6A" => {
                 info!("Insert 'MiFare Classic' card");

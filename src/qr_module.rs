@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use log::{error, info, warn};
+use log::{info, warn};
 use tokio::time;
 
 use crate::{application::ApplicationResponseContext, ServiceResult};
@@ -30,7 +30,7 @@ impl QrModule {
 
         loop {
             if let Err(e) = self.handle_reader().await {
-                error!("Error while handling qr reader: {:?}", e);
+                warn!("Error while handling qr reader: {:?}", e);
             }
             time::sleep(Duration::from_secs(1)).await;
         }
