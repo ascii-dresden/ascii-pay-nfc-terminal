@@ -1,6 +1,5 @@
 use log::info;
 
-use super::mifare_desfire::*;
 use super::utils::*;
 use super::NfcCard;
 
@@ -30,7 +29,7 @@ impl Iso14443Card {
             data
         );
 
-        let mut data = self.card.transmit(&data)?;
+        let mut data = self.card.transmit(data)?;
 
         if data.is_empty() {
             return Err(NfcError::UnknownError);
@@ -44,7 +43,7 @@ impl Iso14443Card {
     }
 
     pub fn get_id(&self) -> NfcResult<Vec<u8>> {
-        let (success, id) = self.card.transmit_raw(&[
+        let (success, id) = self.transmit_raw(&[
             0x00, // Class
             0xA4, // INS
             0x04, // P1
@@ -68,7 +67,7 @@ impl Iso14443Card {
 
     #[allow(non_snake_case)]
     pub fn authenticate_phase1(&self) -> NfcResult<Vec<u8>> {
-        let (status, ek_rndB) = self.transmit(0x10, &[])?;
+        let (success, ek_rndB) = self.transmit(0x10, &[])?;
         if !success {
             return Err(NfcError::UnknownError)
         }
@@ -78,7 +77,7 @@ impl Iso14443Card {
 
     #[allow(non_snake_case)]
     pub fn authenticate_phase2(&self, dk_rndA_rndBshifted: &[u8]) -> NfcResult<Vec<u8>> {
-        let (status, ek_rndAshifted_card) = self.transmit(0x11, dk_rndA_rndBshifted)?;
+        let (success, ek_rndAshifted_card) = self.transmit(0x11, dk_rndA_rndBshifted)?;
         if !success {
             return Err(NfcError::UnknownError)
         }
@@ -87,7 +86,7 @@ impl Iso14443Card {
     }
 
     pub fn init(&self, key: &[u8]) -> NfcResult<()> {
-        let (status, _) = self.transmit(0x20, key)?;
+        let (success, _) = self.transmit(0x20, key)?;
         if !success {
             return Err(NfcError::UnknownError)
         }

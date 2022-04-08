@@ -14,7 +14,7 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 
-tokio-tungstenite = "0.16"
+tokio-tungstenite = "0.17"
 uuid = {version = "0.8", features = ["serde", "v4"]}
 
 dotenv = "0.15"
@@ -32,10 +32,10 @@ lazy_static = "1.4"
 derive_more = "0.99"
 base64 = "0.13"
 pcsc = "2.6"
-shadow-rs = "0.8"
+shadow-rs = "0.11"
 pnet = "0.29"
 
-grpcio = "0.9"
+grpcio = "0.10"
 protobuf = "2.25"
 
 [target.'cfg(target_os="linux")'.dependencies]
@@ -43,4 +43,4 @@ evdev-rs = "0.5"
 
 [build-dependencies]
 protoc-grpcio = "3.0"
-shadow-rs = "0.8"
+shadow-rs = "0.11"

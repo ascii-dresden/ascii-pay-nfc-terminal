@@ -17,15 +17,15 @@ pub enum Encryption {
 impl Encryption {
     pub fn encrypt(&self, data: &[u8]) -> NfcResult<Vec<u8>> {
         Ok(match self {
-            Encryption::PlainText => data.iter().copied().collect(),
+            Encryption::PlainText => data.to_vec(),
             Encryption::MACed(key) => {
                 let mac = &mifare_utils::mac(key, data)?;
-                let mut vec: Vec<u8> = data.iter().copied().collect();
+                let mut vec: Vec<u8> = data.to_vec();
                 vec.extend(mac);
                 vec
             }
             Encryption::Encrypted(key) => {
-                let mut vec: Vec<u8> = data.iter().copied().collect();
+                let mut vec: Vec<u8> = data.to_vec();
                 vec.extend(&mifare_utils::crc_checksum(data));
                 mifare_utils::tdes_encrypt(key, &vec)?
             }
@@ -34,10 +34,10 @@ impl Encryption {
 
     pub fn decrypt(&self, data: &[u8]) -> NfcResult<Vec<u8>> {
         Ok(match self {
-            Encryption::PlainText => data.iter().copied().collect(),
+            Encryption::PlainText => data.to_vec(),
             Encryption::MACed(key) => {
                 let mac = &mifare_utils::mac(key, &data[0..(data.len() - 4)])?;
-                let mut vec: Vec<u8> = data.iter().copied().collect();
+                let mut vec: Vec<u8> = data.to_vec();
                 if mac.len() < 4 {
                     return Err(NfcError::IntegrityError);
                 }
