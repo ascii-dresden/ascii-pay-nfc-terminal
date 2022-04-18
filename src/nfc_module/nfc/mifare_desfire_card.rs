@@ -70,7 +70,7 @@ impl MiFareDESFireCard {
         rndBshifted.extend(&rndB[1..8]);
         rndBshifted.push(rndB[0]);
 
-        let rndA = mifare_utils::generate_key();
+        let rndA = mifare_utils::generate_key::<8>();
 
         let mut rndAshifted: Vec<u8> = Vec::with_capacity(8);
         rndAshifted.extend(&rndA[1..8]);

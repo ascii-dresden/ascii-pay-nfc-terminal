@@ -16,7 +16,7 @@ pub use errors::*;
 
 mod websocket_server;
 use websocket_server::WebsocketServer;
-mod nfc_module;
+pub mod nfc_module;
 use nfc_module::NfcModule;
 mod qr_module;
 use qr_module::QrModule;
@@ -33,7 +33,10 @@ use tokio::signal;
 #[tokio::main(worker_threads = 4)]
 async fn main() {
     dotenv::dotenv().ok();
-    std::env::set_var("RUST_LOG", "ascii_pay_nfc_terminal=info,ascii_pay_nfc_terminal::qr_module=error");
+    std::env::set_var(
+        "RUST_LOG",
+        "ascii_pay_nfc_terminal=info,ascii_pay_nfc_terminal::qr_module=error",
+    );
     env_logger::init();
     let isDemo = std::env::args().any(|arg| arg == "--demo");
 

@@ -139,10 +139,10 @@ pub fn crc_test() {
     assert_eq!(crc, hex!("26 CF"));
 }
 
-pub fn generate_key() -> [u8; 8] {
+pub fn generate_key<const N: usize>() -> [u8; N] {
     use rand_core::RngCore;
 
-    let mut data = [0u8; 8];
+    let mut data = [0u8; N];
     rand::thread_rng().fill_bytes(&mut data);
     data
 }

@@ -8,7 +8,6 @@ pub struct Iso14443Card {
 }
 
 impl Iso14443Card {
-
     pub fn new(card: NfcCard) -> Self {
         Iso14443Card { card }
     }
@@ -23,11 +22,7 @@ impl Iso14443Card {
     }
 
     fn transmit_raw(&self, data: &[u8]) -> NfcResult<(bool, Vec<u8>)> {
-        info!(
-            "  Send Command: l={}, data={:2X?}",
-            data.len(),
-            data
-        );
+        info!("  Send Command: l={}, data={:2X?}", data.len(), data);
 
         let mut data = self.card.transmit(data)?;
 
@@ -49,17 +44,11 @@ impl Iso14443Card {
             0x04, // P1
             0x00, // P2
             0x07, // Lc
-            0xF0,
-            0x00,
-            0x00,
-            0x00,
-            0xC0,
-            0xFF,
-            0xEE,
+            0xF0, 0x00, 0x00, 0x00, 0xC0, 0xFF, 0xEE,
         ])?;
 
         if !success {
-            return Err(NfcError::UnknownError)
+            return Err(NfcError::UnknownError);
         }
 
         Ok(id)
@@ -69,7 +58,7 @@ impl Iso14443Card {
     pub fn authenticate_phase1(&self) -> NfcResult<Vec<u8>> {
         let (success, ek_rndB) = self.transmit(0x10, &[])?;
         if !success {
-            return Err(NfcError::UnknownError)
+            return Err(NfcError::UnknownError);
         }
 
         Ok(ek_rndB)
@@ -79,7 +68,7 @@ impl Iso14443Card {
     pub fn authenticate_phase2(&self, dk_rndA_rndBshifted: &[u8]) -> NfcResult<Vec<u8>> {
         let (success, ek_rndAshifted_card) = self.transmit(0x11, dk_rndA_rndBshifted)?;
         if !success {
-            return Err(NfcError::UnknownError)
+            return Err(NfcError::UnknownError);
         }
 
         Ok(ek_rndAshifted_card)
@@ -88,7 +77,7 @@ impl Iso14443Card {
     pub fn init(&self, key: &[u8]) -> NfcResult<()> {
         let (success, _) = self.transmit(0x20, key)?;
         if !success {
-            return Err(NfcError::UnknownError)
+            return Err(NfcError::UnknownError);
         }
 
         Ok(())

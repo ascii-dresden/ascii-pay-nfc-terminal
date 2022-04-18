@@ -1,8 +1,10 @@
 use log::{error, info};
 use uuid::Uuid;
 
-use crate::{application::ApplicationResponseContext, RemoteErrorType, ServiceError, ServiceResult};
 use crate::nfc_module::nfc::utils;
+use crate::{
+    application::ApplicationResponseContext, RemoteErrorType, ServiceError, ServiceResult,
+};
 
 use super::nfc::{Iso14443Card, NfcCard};
 

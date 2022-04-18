@@ -2,7 +2,9 @@ use uuid::Uuid;
 
 use crate::{application::ApplicationResponseContext, ServiceResult};
 
-use super::{nfc::NfcCard, GenericNfcHandler, MiFareDESFireHandler, Iso14443Handler, UnsupportedCardHandler};
+use super::{
+    nfc::NfcCard, GenericNfcHandler, Iso14443Handler, MiFareDESFireHandler, UnsupportedCardHandler,
+};
 
 pub enum NfcCardHandlerWrapper {
     MiFareDESFire(MiFareDESFireHandler),
