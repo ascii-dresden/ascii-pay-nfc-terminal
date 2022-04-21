@@ -1,3 +1,5 @@
+use std::fs::{File, self};
+use std::io::Read;
 use std::{process::exit, sync::Arc};
 
 use grpcio::{ChannelBuilder, ChannelCredentialsBuilder, EnvBuilder};
@@ -5,6 +7,7 @@ use log::{error, info, warn};
 use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
+use crate::env::{SSL_ROOT_CERT, SSL_PRIVATE_KEY, SSL_CERT};
 use crate::grpc::authentication::{NfcCardType, TokenType};
 use crate::grpc::authentication_grpc::AsciiPayAuthenticationClient;
 use crate::nfc_module::{nfc::utils, NfcCommand};
@@ -364,6 +367,14 @@ impl ApplicationRequestContext {
     }
 }
 
+fn read_file_to_vec(filename: &str) -> Vec<u8> {
+    let mut f = File::open(&filename).expect("no file found");
+    let metadata = fs::metadata(&filename).expect("unable to read metadata");
+    let mut buffer = vec![0; metadata.len() as usize];
+    f.read(&mut buffer).expect("buffer overflow");
+    buffer
+}
+
 pub struct Application {
     command_sender: mpsc::Sender<ApplicationCommand>,
     command_recv: mpsc::Receiver<ApplicationCommand>,
@@ -378,7 +389,7 @@ impl Application {
         let env = Arc::new(EnvBuilder::new().build());
 
         let ch = if isDemo {
-            let root_cert = include_bytes!("../certificates/ascii-pay-root.crt").to_vec();
+            let root_cert = read_file_to_vec(&SSL_ROOT_CERT);
             ChannelBuilder::new(env)
                 .default_authority("secure-pay.ascii.local")
                 .secure_connect(
@@ -388,9 +399,9 @@ impl Application {
                         .build(),
                 )
         } else {
-            let root_cert = include_bytes!("../certificates/root.pem").to_vec();
-            let cert = include_bytes!("../certificates/client.crt").to_vec();
-            let private_key = include_bytes!("../certificates/ascii-pay-client.pem").to_vec();
+            let root_cert = read_file_to_vec(&SSL_ROOT_CERT);
+            let cert = read_file_to_vec(&SSL_CERT);
+            let private_key = read_file_to_vec(&SSL_PRIVATE_KEY);
             ChannelBuilder::new(env)
                 .default_authority("secure-pay.ascii.coffee")
                 .secure_connect(
