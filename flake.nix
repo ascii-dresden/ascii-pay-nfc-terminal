@@ -4,18 +4,17 @@
 
     naersk = {
       url = "github:nix-community/naersk";
-      nixpkgs.follows = "nixpkgs";
     };
 
     utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, naersk, utils, ... }@inputs: 
+  outputs = { self, nixpkgs, naersk, utils, ... }: 
    utils.lib.eachDefaultSystem (system: let
       pkgs = nixpkgs.legacyPackages.${system};
       in rec {
         checks = packages;
-        packages.ascii-pay-nfc-terminal = nixpkgs.legacyPackages.${system}.callPackage ./derivation.nix {
+        packages.ascii-pay-nfc-terminal = pkgs.callPackage ./derivation.nix {
           src = ./.;
           naersk = naersk.lib.${system};
         };

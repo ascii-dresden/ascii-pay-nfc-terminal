@@ -3,7 +3,7 @@
 , lib
 , pkg-config
 , protobuf
-, gcc
+, clang 
 , cmake
 , openssl
 , pcsclite
@@ -14,6 +14,7 @@
 , opensc
 , pcsctools
 , protobufc
+, glibc
 }:
 
 naersk.buildPackage {
@@ -24,13 +25,8 @@ naersk.buildPackage {
 
   cargoSha256 = lib.fakeSha256;
 
-  nativeBuildInputs = [ pkg-config protobuf gcc cmake ];
-  buildInputs = [ openssl pcsclite libnfc libevdev ccid acsccid opensc pcsctools protobufc];
-
-#  installPhase = ''
-#    ls -a
-#    cp -r ./AsciiPayCard.pass $out/
-#  '';
+  nativeBuildInputs = [ pkg-config protobuf clang cmake ];
+  buildInputs = [ openssl pcsclite libnfc libevdev ccid acsccid opensc pcsctools protobufc glibc ];
 
   meta = with lib; {
     description = "Rust server which handles the transactions of the ascii-pay system.";
