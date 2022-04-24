@@ -35,12 +35,17 @@ base64 = "0.13"
 pcsc = "2.6"
 shadow-rs = "0.11"
 pnet = "0.29"
+openssl-sys = { version = "0.9" }
+#openssl = { version = "0.10" }
 
-grpcio = "0.10"
+#grpcio = { version = "0.10.2", default-features=false, features=["protobuf-codec", "openssl"] }
+
+grpcio = { version = "0.10", default-features = false, features=["protobuf-codec", "openssl"] }
 protobuf = "2.25"
 
-[target.'cfg(target_os="linux")'.dependencies]
+#[target.'cfg(target_os="linux")'.dependencies]
 evdev-rs = "0.5"
+
 
 [build-dependencies]
 protoc-grpcio = "3.0"
