@@ -1,4 +1,4 @@
-use std::fs::{File, self};
+use std::fs::{self, File};
 use std::io::Read;
 use std::{process::exit, sync::Arc};
 
@@ -7,7 +7,7 @@ use log::{error, info, warn};
 use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
-use crate::env::{SSL_ROOT_CERT, SSL_PRIVATE_KEY, SSL_CERT};
+use crate::env::SSL_ROOT_CERT;
 use crate::grpc::authentication::{NfcCardType, TokenType};
 use crate::grpc::authentication_grpc::AsciiPayAuthenticationClient;
 use crate::nfc_module::{nfc::utils, NfcCommand};
@@ -388,30 +388,15 @@ impl Application {
         let (tx, rx) = mpsc::channel(32);
         let env = Arc::new(EnvBuilder::new().build());
 
-        let ch = if isDemo {
-            let root_cert = read_file_to_vec(&SSL_ROOT_CERT);
-            ChannelBuilder::new(env)
-                .default_authority("secure-pay.ascii.local")
-                .secure_connect(
-                    "secure-pay.ascii.local:443",
-                    ChannelCredentialsBuilder::new()
-                        .root_cert(root_cert)
-                        .build(),
-                )
-        } else {
-            let root_cert = read_file_to_vec(&SSL_ROOT_CERT);
-            let cert = read_file_to_vec(&SSL_CERT);
-            let private_key = read_file_to_vec(&SSL_PRIVATE_KEY);
-            ChannelBuilder::new(env)
-                .default_authority("secure-pay.ascii.coffee")
-                .secure_connect(
-                    "secure-pay.ascii.coffee:443",
-                    ChannelCredentialsBuilder::new()
-                        .root_cert(root_cert)
-                        .cert(cert, private_key)
-                        .build(),
-                )
-        };
+        let root_cert = read_file_to_vec(&SSL_ROOT_CERT);
+        let ch = ChannelBuilder::new(env)
+            .default_authority("secure-pay.ascii.coffee")
+            .secure_connect(
+                "secure-pay.ascii.coffee:443",
+                ChannelCredentialsBuilder::new()
+                    .root_cert(root_cert)
+                    .build(),
+            );
 
         let client = AsciiPayAuthenticationClient::new(ch);
         Self {

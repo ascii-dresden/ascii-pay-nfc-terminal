@@ -36,9 +36,6 @@ pcsc = "2.6"
 shadow-rs = "0.11"
 pnet = "0.29"
 openssl-sys = { version = "0.9" }
-#openssl = { version = "0.10" }
-
-#grpcio = { version = "0.10.2", default-features=false, features=["protobuf-codec", "openssl"] }
 
 grpcio = { version = "0.10", default-features = false, features=["protobuf-codec", "openssl"] }
 protobuf = "2.25"
