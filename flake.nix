@@ -9,20 +9,21 @@
     utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, naersk, utils, ... }: 
-   utils.lib.eachDefaultSystem (system: let
-      pkgs = nixpkgs.legacyPackages.${system};
-      in rec {
-        checks = packages;
-        packages.ascii-pay-nfc-terminal = pkgs.callPackage ./derivation.nix {
+  outputs = { self, nixpkgs, naersk, utils, ... }:
+    utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        package = pkgs.callPackage ./derivation.nix {
           src = ./.;
           naersk = naersk.lib.${system};
         };
+      in
+      rec {
+        checks = packages;
+        defaultPackage = package;
+        packages.ascii-pay-nfc-terminal = package;
         overlay = (final: prev: {
-          ascii-pay-nfc-terminal = pkgs.callPackage ./derivation.nix {
-            src = ./.;
-            naersk = naersk.lib.${system};
-          };
+          ascii-pay-nfc-terminal = package;
           ascii-pay-nfc-terminal-src = ./.;
         });
       }

@@ -3,7 +3,7 @@
 , lib
 , pkg-config
 , protobuf
-, gcc10 
+, gcc10
 , binutils
 , cmake
 , openssl
@@ -28,7 +28,7 @@ naersk.buildPackage {
   cargoSha256 = lib.fakeSha256;
 
   nativeBuildInputs = [ pkg-config protobuf cmake binutils perl grpc gcc10 ];
-  buildInputs = [ openssl pcsclite libnfc libevdev ccid acsccid opensc pcsctools protobufc grpc gcc10];
+  buildInputs = [ openssl pcsclite libnfc libevdev ccid acsccid opensc pcsctools protobufc grpc gcc10 ];
 
   meta = with lib; {
     description = "Rust server which handles the transactions of the ascii-pay system.";
