@@ -25,8 +25,6 @@ naersk.buildPackage {
 
   inherit src;
 
-  cargoSha256 = lib.fakeSha256;
-
   nativeBuildInputs = [ pkg-config protobuf cmake binutils perl grpc gcc10 ];
   buildInputs = [ openssl pcsclite libnfc libevdev ccid acsccid opensc pcsctools protobufc grpc gcc10 ];
 
