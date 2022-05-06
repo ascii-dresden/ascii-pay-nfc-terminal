@@ -12,6 +12,7 @@ pub mod env;
 pub mod grpc;
 
 mod errors;
+use env_logger::Env;
 pub use errors::*;
 
 mod websocket_server;
@@ -33,11 +34,11 @@ use tokio::signal;
 #[tokio::main(worker_threads = 4)]
 async fn main() {
     dotenv::dotenv().ok();
-    std::env::set_var(
-        "RUST_LOG",
-        "ascii_pay_nfc_terminal=info,ascii_pay_nfc_terminal::qr_module=error",
+    env_logger::init_from_env(
+        Env::new().default_filter_or(
+            "ascii_pay_nfc_terminal=info,ascii_pay_nfc_terminal::qr_module=error",
+        ),
     );
-    env_logger::init();
     let isDemo = std::env::args().any(|arg| arg == "--demo");
 
     let mut application = Application::new(isDemo);
