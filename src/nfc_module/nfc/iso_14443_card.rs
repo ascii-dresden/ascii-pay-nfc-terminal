@@ -56,7 +56,8 @@ impl Iso14443Card {
 
     #[allow(non_snake_case)]
     pub fn authenticate_phase1(&self) -> NfcResult<Vec<u8>> {
-        let (success, ek_rndB) = self.transmit(0x10, &[])?;
+        let (success, ek_rndB) =
+            self.transmit(0x10, &[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])?;
         if !success {
             return Err(NfcError::UnknownError);
         }

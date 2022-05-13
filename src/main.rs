@@ -41,7 +41,7 @@ async fn main() {
     );
     let isDemo = std::env::args().any(|arg| arg == "--demo");
 
-    let mut application = Application::new(isDemo);
+    let mut application = Application::new();
 
     let websocket_server = WebsocketServer::new(
         application.get_request_context(),

@@ -7,7 +7,7 @@ use log::{error, info, warn};
 use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
-use crate::env::{SSL_ROOT_CERT, SSL_CERT, SSL_PRIVATE_KEY};
+use crate::env::{SSL_CERT, SSL_PRIVATE_KEY, SSL_ROOT_CERT};
 use crate::grpc::authentication::{NfcCardType, TokenType};
 use crate::grpc::authentication_grpc::AsciiPayAuthenticationClient;
 use crate::nfc_module::{nfc::utils, NfcCommand};
@@ -384,7 +384,7 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn new(isDemo: bool) -> Self {
+    pub fn new() -> Self {
         let (tx, rx) = mpsc::channel(32);
         let env = Arc::new(EnvBuilder::new().build());
 
