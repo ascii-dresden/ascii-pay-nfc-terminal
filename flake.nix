@@ -27,6 +27,10 @@
           ascii-pay-nfc-terminal = package;
           ascii-pay-nfc-terminal-src = ./.;
         });
+
+        hydraJobs = {
+          ascii-pay-nfc-terminal."${system}" = package;
+        };
       }
     );
 }
