@@ -28,9 +28,13 @@
           ascii-pay-nfc-terminal-src = ./.;
         });
 
-        hydraJobs = {
-          ascii-pay-nfc-terminal."${system}" = package;
-        };
       }
-    );
+      ) // rec {
+
+        hydraJobs = {
+          ascii-pay-nfc-terminal."x86_64-linux" = self.packages."x86_64-linux".ascii-pay-nfc-terminal;
+          ascii-pay-nfc-terminal."aarch64-linux" = self.packages."aarch64-linux".ascii-pay-nfc-terminal;
+        };
+
+      };
 }
