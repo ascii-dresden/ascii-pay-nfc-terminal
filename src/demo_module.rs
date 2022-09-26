@@ -90,7 +90,9 @@ async fn run_spawn(
 
 async fn run_loop(context: ApplicationResponseContext, current_cards: Arc<Mutex<Option<String>>>) {
     loop {
-        run_loop_error(&context, &current_cards);
+        if let Err(e) = run_loop_error(&context, &current_cards).await {
+            error!("Error in demo loop: {:?}", e)
+        }
     }
 }
 
@@ -108,7 +110,7 @@ async fn run_loop_error(
             let mut current_cards = current_cards.lock().await;
 
             if current_cards.is_none() {
-                handle_card_authentication(&context, &code).await;
+                handle_card_authentication(context, &code).await;
                 *current_cards = Some(code);
             } else {
                 context.send_nfc_card_removed().await;
@@ -129,17 +131,18 @@ async fn handle_card_authentication(context: &ApplicationResponseContext, card: 
 
     match context.authenticate_nfc_type(card_id.clone()).await {
         Ok((card_id, nfc_card_type)) => match nfc_card_type {
-            crate::grpc::authentication::NfcCardType::GENERIC => {
+            crate::grpc::authentication::NfcCardType::Generic => {
                 let (card_id, token_type, token) =
-                    context.authenticate_nfc_generic(card_id).await?;
+                    context.authenticate_nfc_generic(card_id).await.unwrap();
 
-                context.send_token(token_type, token).await?;
+                context.send_token(token_type, token).await.unwrap();
             }
             _ => {
                 Result::<(), ServiceError>::Err(ServiceError::InternalError(
                     "NFC card type miss match",
                     String::new(),
-                ))?;
+                ))
+                .unwrap();
             }
         },
         Err(err) => {

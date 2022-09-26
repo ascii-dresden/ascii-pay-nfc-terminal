@@ -16,7 +16,7 @@ serde_derive = "1.0"
 serde_json = "1.0"
 
 tokio-tungstenite = "0.17"
-uuid = {version = "0.8", features = ["serde", "v4"]}
+uuid = {version = "1.1", features = ["serde", "v4"]}
 
 dotenv = "0.15"
 futures = "0.3.19"
@@ -33,17 +33,18 @@ lazy_static = "1.4"
 derive_more = "0.99"
 base64 = "0.13"
 pcsc = "2.6"
-shadow-rs = "0.11"
-pnet = "0.29"
+shadow-rs = "0.16"
+pnet = { version = "0.31.0", features = ["std"] }
 openssl-sys = { version = "0.9" }
 
-grpcio = { version = "0.10", default-features = false, features=["protobuf-codec", "openssl"] }
-protobuf = "2.25"
+grpcio = { version = "0.11", default-features = false, features=["prost-codec", "openssl"] }
+bytes = "1.2"
+prost = "0.10"
 
-#[target.'cfg(target_os="linux")'.dependencies]
-evdev-rs = "0.5"
+[target.'cfg(target_os="linux")'.dependencies]
+evdev-rs = "0.6"
 
 
 [build-dependencies]
-protoc-grpcio = "3.0"
-shadow-rs = "0.11"
+grpcio-compiler = { version = "0.11", default-features = false, features=["prost-codec"] }
+shadow-rs = "0.16"

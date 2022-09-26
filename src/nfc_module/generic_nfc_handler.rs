@@ -61,7 +61,7 @@ impl GenericNfcHandler {
 
         match context.authenticate_nfc_type(card_id.clone()).await {
             Ok((card_id, nfc_card_type)) => match nfc_card_type {
-                crate::grpc::authentication::NfcCardType::GENERIC => {
+                crate::grpc::authentication::NfcCardType::Generic => {
                     let (card_id, token_type, token) =
                         context.authenticate_nfc_generic(card_id).await?;
 

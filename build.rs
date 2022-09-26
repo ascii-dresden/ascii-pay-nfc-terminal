@@ -1,10 +1,13 @@
-extern crate protoc_grpcio;
+use grpcio_compiler::prost_codegen::compile_protos;
 
 fn compile_protobuf() {
-    println!("cargo:rerun-if-changed=proto/authentication.proto");
+    // println!("cargo:rerun-if-changed=proto/authentication.proto");
 
-    protoc_grpcio::compile_grpc_protos(&["proto/authentication.proto"], &[""], "src/grpc", None)
-        .expect("Failed to compile gRPC definitions!");
+    let outdir = match std::env::var("OUT_DIR") {
+        Err(_) => return,
+        Ok(outdir) => outdir,
+    };
+    compile_protos(&["proto/authentication.proto"], &["proto"], &outdir).unwrap();
 }
 
 fn main() {

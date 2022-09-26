@@ -101,7 +101,7 @@ impl MiFareDESFireHandler {
             if diff < 0 {
                 self.card.debit(
                     MENSA_FILE_NUMBER,
-                    diff.abs() as u32,
+                    diff.unsigned_abs(),
                     mifare_desfire::Encryption::PlainText,
                 )?;
             } else {
@@ -243,14 +243,14 @@ impl MiFareDESFireHandler {
 
         match context.authenticate_nfc_type(card_id.clone()).await {
             Ok((card_id, nfc_card_type)) => match nfc_card_type {
-                crate::grpc::authentication::NfcCardType::GENERIC => {
+                crate::grpc::authentication::NfcCardType::Generic => {
                     let (card_id, token_type, token) =
                         context.authenticate_nfc_generic(card_id).await?;
 
                     context.send_token(token_type, token).await?;
                     return Ok(());
                 }
-                crate::grpc::authentication::NfcCardType::MIFARE_DESFIRE => {}
+                crate::grpc::authentication::NfcCardType::MifareDesfire => {}
                 _ => {
                     context
                         .send_error("NFC Reader", "NFC card type miss match")

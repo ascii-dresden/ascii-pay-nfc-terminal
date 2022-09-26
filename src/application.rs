@@ -8,8 +8,7 @@ use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
 use crate::env::{SSL_CERT, SSL_PRIVATE_KEY, SSL_ROOT_CERT};
-use crate::grpc::authentication::{NfcCardType, TokenType};
-use crate::grpc::authentication_grpc::AsciiPayAuthenticationClient;
+use crate::grpc::authentication::{AsciiPayAuthenticationClient, NfcCardType, TokenType};
 use crate::nfc_module::{nfc::utils, NfcCommand};
 use crate::websocket_server::WebsocketResponseMessage;
 use crate::{status, ServiceResult};
@@ -136,10 +135,10 @@ impl ApplicationResponseContext {
 
     pub async fn send_token(&self, token_type: TokenType, token: String) -> ServiceResult<()> {
         match token_type {
-            crate::grpc::authentication::TokenType::ACCOUNT_ACCESS_TOKEN => {
+            crate::grpc::authentication::TokenType::AccountAccessToken => {
                 self.send_found_account_access_token(token).await;
             }
-            crate::grpc::authentication::TokenType::PRODUCT_ID => {
+            crate::grpc::authentication::TokenType::ProductId => {
                 self.send_found_product_id(token).await;
             }
         }
@@ -148,8 +147,7 @@ impl ApplicationResponseContext {
     }
 
     pub async fn authenticate_barcode(&self, code: String) -> ServiceResult<(TokenType, String)> {
-        let mut req = crate::grpc::authentication::AuthenticateBarcodeRequest::new();
-        req.set_code(code);
+        let req = crate::grpc::authentication::AuthenticateBarcodeRequest { code };
 
         info!("authenticate_barcode: {:?}", req);
         let res = self
@@ -159,15 +157,19 @@ impl ApplicationResponseContext {
             .authenticate_barcode_async(&req)?
             .await?;
         info!("    -> {:?}", res);
-        Ok((res.get_tokenType(), res.get_token().to_owned()))
+
+        let token_type = match res.token_type {
+            0 => TokenType::AccountAccessToken,
+            _ => TokenType::ProductId,
+        };
+        Ok((token_type, res.token))
     }
 
     pub async fn authenticate_nfc_type(
         &self,
         card_id: String,
     ) -> ServiceResult<(String, NfcCardType)> {
-        let mut req = crate::grpc::authentication::AuthenticateNfcTypeRequest::new();
-        req.set_card_id(card_id);
+        let req = crate::grpc::authentication::AuthenticateNfcTypeRequest { card_id };
 
         info!("authenticate_nfc_type: {:?}", req);
         let res = self
@@ -177,15 +179,19 @@ impl ApplicationResponseContext {
             .authenticate_nfc_type_async(&req)?
             .await?;
         info!("    -> {:?}", res);
-        Ok((res.get_card_id().to_owned(), res.get_tokenType()))
+
+        let token_type = match res.token_type {
+            0 => NfcCardType::Generic,
+            _ => NfcCardType::MifareDesfire,
+        };
+        Ok((res.card_id, token_type))
     }
 
     pub async fn authenticate_nfc_generic(
         &self,
         card_id: String,
     ) -> ServiceResult<(String, TokenType, String)> {
-        let mut req = crate::grpc::authentication::AuthenticateNfcGenericRequest::new();
-        req.set_card_id(card_id);
+        let req = crate::grpc::authentication::AuthenticateNfcGenericRequest { card_id };
 
         info!("authenticate_nfc_generic: {:?}", req);
         let res = self
@@ -195,11 +201,12 @@ impl ApplicationResponseContext {
             .authenticate_nfc_generic_async(&req)?
             .await?;
         info!("    -> {:?}", res);
-        Ok((
-            res.get_card_id().to_owned(),
-            res.get_tokenType(),
-            res.get_token().to_owned(),
-        ))
+
+        let token_type = match res.token_type {
+            0 => TokenType::AccountAccessToken,
+            _ => TokenType::ProductId,
+        };
+        Ok((res.card_id, token_type, res.token))
     }
 
     pub async fn authenticate_nfc_mifare_desfire_phase1(
@@ -207,9 +214,10 @@ impl ApplicationResponseContext {
         card_id: String,
         ek_rndB: &[u8],
     ) -> ServiceResult<(String, Vec<u8>)> {
-        let mut req = crate::grpc::authentication::AuthenticateNfcMifareDesfirePhase1Request::new();
-        req.set_card_id(card_id);
-        req.set_ek_rndB(utils::bytes_to_string(ek_rndB));
+        let req = crate::grpc::authentication::AuthenticateNfcMifareDesfirePhase1Request {
+            card_id,
+            ek_rnd_b: utils::bytes_to_string(ek_rndB),
+        };
 
         info!("authenticate_nfc_mifare_desfire_phase1: {:?}", req);
         let res = self
@@ -219,10 +227,7 @@ impl ApplicationResponseContext {
             .authenticate_nfc_mifare_desfire_phase1_async(&req)?
             .await?;
         info!("    -> {:?}", res);
-        Ok((
-            res.get_card_id().to_owned(),
-            utils::str_to_bytes(res.get_dk_rndA_rndBshifted()),
-        ))
+        Ok((res.card_id, utils::str_to_bytes(&res.dk_rnd_a_rnd_bshifted)))
     }
 
     pub async fn authenticate_nfc_mifare_desfire_phase2(
@@ -231,10 +236,11 @@ impl ApplicationResponseContext {
         dk_rndA_rndBshifted: &[u8],
         ek_rndAshifted_card: &[u8],
     ) -> ServiceResult<(String, Vec<u8>, TokenType, String)> {
-        let mut req = crate::grpc::authentication::AuthenticateNfcMifareDesfirePhase2Request::new();
-        req.set_card_id(card_id);
-        req.set_dk_rndA_rndBshifted(utils::bytes_to_string(dk_rndA_rndBshifted));
-        req.set_ek_rndAshifted_card(utils::bytes_to_string(ek_rndAshifted_card));
+        let req = crate::grpc::authentication::AuthenticateNfcMifareDesfirePhase2Request {
+            card_id,
+            dk_rnd_a_rnd_bshifted: utils::bytes_to_string(dk_rndA_rndBshifted),
+            ek_rnd_ashifted_card: utils::bytes_to_string(ek_rndAshifted_card),
+        };
 
         info!("authenticate_nfc_mifare_desfire_phase2: {:?}", req);
         let res = self
@@ -244,11 +250,16 @@ impl ApplicationResponseContext {
             .authenticate_nfc_mifare_desfire_phase2_async(&req)?
             .await?;
         info!("    -> {:?}", res);
+
+        let token_type = match res.token_type {
+            0 => TokenType::AccountAccessToken,
+            _ => TokenType::ProductId,
+        };
         Ok((
-            res.get_card_id().to_owned(),
-            utils::str_to_bytes(res.get_session_key()),
-            res.get_tokenType(),
-            res.get_token().to_owned(),
+            res.card_id,
+            utils::str_to_bytes(&res.session_key),
+            token_type,
+            res.token,
         ))
     }
 
@@ -257,9 +268,10 @@ impl ApplicationResponseContext {
         card_id: String,
         account_id: Uuid,
     ) -> ServiceResult<String> {
-        let mut req = crate::grpc::authentication::AuthenticateNfcGenericInitCardRequest::new();
-        req.set_card_id(card_id);
-        req.set_account_id(account_id.to_string());
+        let req = crate::grpc::authentication::AuthenticateNfcGenericInitCardRequest {
+            card_id,
+            account_id: account_id.to_string(),
+        };
 
         info!("authenticate_nfc_generic_init_card: {:?}", req);
         let res = self
@@ -269,7 +281,7 @@ impl ApplicationResponseContext {
             .authenticate_nfc_generic_init_card_async(&req)?
             .await?;
         info!("    -> {:?}", res);
-        Ok(res.get_card_id().to_owned())
+        Ok(res.card_id)
     }
 
     pub async fn authenticate_nfc_mifare_desfire_init_card(
@@ -277,10 +289,10 @@ impl ApplicationResponseContext {
         card_id: String,
         account_id: Uuid,
     ) -> ServiceResult<(String, Vec<u8>)> {
-        let mut req =
-            crate::grpc::authentication::AuthenticateNfcMifareDesfireInitCardRequest::new();
-        req.set_card_id(card_id);
-        req.set_account_id(account_id.to_string());
+        let req = crate::grpc::authentication::AuthenticateNfcMifareDesfireInitCardRequest {
+            card_id,
+            account_id: account_id.to_string(),
+        };
 
         info!("authenticate_nfc_mifare_desfire_init_card: {:?}", req);
         let res = self
@@ -290,10 +302,7 @@ impl ApplicationResponseContext {
             .authenticate_nfc_mifare_desfire_init_card_async(&req)?
             .await?;
         info!("    -> {:?}", res);
-        Ok((
-            res.get_card_id().to_owned(),
-            utils::str_to_bytes(res.get_key()),
-        ))
+        Ok((res.card_id, utils::str_to_bytes(&res.key)))
     }
 }
 
@@ -371,7 +380,7 @@ fn read_file_to_vec(filename: &str) -> Vec<u8> {
     let mut f = File::open(&filename).expect("no file found");
     let metadata = fs::metadata(&filename).expect("unable to read metadata");
     let mut buffer = vec![0; metadata.len() as usize];
-    f.read(&mut buffer).expect("buffer overflow");
+    f.read_to_end(&mut buffer).expect("buffer overflow");
     buffer
 }
 
@@ -600,5 +609,11 @@ impl Application {
                 }
             }
         }
+    }
+}
+
+impl Default for Application {
+    fn default() -> Self {
+        Self::new()
     }
 }

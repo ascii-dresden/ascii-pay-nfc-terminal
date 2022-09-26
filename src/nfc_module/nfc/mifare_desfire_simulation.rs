@@ -90,6 +90,7 @@ impl MiFareDESFireSimulation {
         }
     }
 
+    #[allow(clippy::let_and_return)]
     pub fn phase1(&mut self) -> [u8; 8] {
         // self.rndB = generate_key::<8>();
 
@@ -106,7 +107,7 @@ impl MiFareDESFireSimulation {
         println!("# Debug card");
 
         // Decrypt server request
-        let rndA_rndBshifted = tdes_decrypt_simulation(&self.key, &dk_rndA_rndBshifted);
+        let rndA_rndBshifted = tdes_decrypt_simulation(&self.key, dk_rndA_rndBshifted);
 
         let rndA = &rndA_rndBshifted[0..8];
 
@@ -126,11 +127,17 @@ impl MiFareDESFireSimulation {
         rndAshifted.extend(&rndA[1..8]);
         rndAshifted.push(rndA[0]);
 
-        println!("-- rndA: {}", utils::bytes_to_string(&rndA));
-        println!("-- rndAShifted: {}", utils::bytes_to_string(&rndA));
+        println!("-- rndA: {}", utils::bytes_to_string(rndA));
+        println!("-- rndAShifted: {}", utils::bytes_to_string(rndA));
 
         let ek_rndAshifted = tdes_encrypt_simulation(&self.key, &rndAshifted);
 
         ek_rndAshifted.try_into().unwrap()
+    }
+}
+
+impl Default for MiFareDESFireSimulation {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -52,7 +52,7 @@ impl Iso14443Handler {
 
         match context.authenticate_nfc_type(card_id.clone()).await {
             Ok((card_id, nfc_card_type)) => match nfc_card_type {
-                crate::grpc::authentication::NfcCardType::MIFARE_DESFIRE => {}
+                crate::grpc::authentication::NfcCardType::MifareDesfire => {}
                 _ => {
                     context
                         .send_error("NFC Reader", "NFC card type miss match")

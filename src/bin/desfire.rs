@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+#![allow(clippy::let_and_return)]
 
 use std::{convert::TryInto, io, process::exit};
 
