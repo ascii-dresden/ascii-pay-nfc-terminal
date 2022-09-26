@@ -440,156 +440,161 @@ impl Application {
         info!("Start application module");
 
         loop {
-            match self.command_recv.recv().await.unwrap() {
-                ApplicationCommand::FoundUnknownBarcode { code } => {
-                    info!("FoundUnknownBarcode({:?})", code);
-                    if let Some(sender) = self.websocket_sender.as_ref() {
-                        if sender
-                            .send(WebsocketResponseMessage::FoundUnknownBarcode { code })
-                            .await
-                            .is_err()
-                        {
-                            error!("Internal message bus seems to be dead. Aborting!");
-                            exit(1);
+            let recv = self.command_recv.recv().await;
+            if let Some(command) = recv {
+                match command {
+                    ApplicationCommand::FoundUnknownBarcode { code } => {
+                        info!("FoundUnknownBarcode({:?})", code);
+                        if let Some(sender) = self.websocket_sender.as_ref() {
+                            if sender
+                                .send(WebsocketResponseMessage::FoundUnknownBarcode { code })
+                                .await
+                                .is_err()
+                            {
+                                error!("Internal message bus seems to be dead. Aborting!");
+                                exit(1);
+                            }
                         }
                     }
-                }
-                ApplicationCommand::FoundAccountNumber { account_number } => {
-                    info!("FoundAccountNumber({:?})", account_number);
-                    if let Some(sender) = self.websocket_sender.as_ref() {
-                        if sender
-                            .send(WebsocketResponseMessage::FoundAccountNumber { account_number })
-                            .await
-                            .is_err()
-                        {
-                            error!("Internal message bus seems to be dead. Aborting!");
-                            exit(1);
+                    ApplicationCommand::FoundAccountNumber { account_number } => {
+                        info!("FoundAccountNumber({:?})", account_number);
+                        if let Some(sender) = self.websocket_sender.as_ref() {
+                            if sender
+                                .send(WebsocketResponseMessage::FoundAccountNumber {
+                                    account_number,
+                                })
+                                .await
+                                .is_err()
+                            {
+                                error!("Internal message bus seems to be dead. Aborting!");
+                                exit(1);
+                            }
                         }
                     }
-                }
-                ApplicationCommand::FoundUnknownNfcCard { id, name } => {
-                    info!("FoundUnknownNfcCard({:?}, {:?})", id, name);
-                    if let Some(sender) = self.websocket_sender.as_ref() {
-                        if sender
-                            .send(WebsocketResponseMessage::FoundUnknownNfcCard { id, name })
-                            .await
-                            .is_err()
-                        {
-                            error!("Internal message bus seems to be dead. Aborting!");
-                            exit(1);
+                    ApplicationCommand::FoundUnknownNfcCard { id, name } => {
+                        info!("FoundUnknownNfcCard({:?}, {:?})", id, name);
+                        if let Some(sender) = self.websocket_sender.as_ref() {
+                            if sender
+                                .send(WebsocketResponseMessage::FoundUnknownNfcCard { id, name })
+                                .await
+                                .is_err()
+                            {
+                                error!("Internal message bus seems to be dead. Aborting!");
+                                exit(1);
+                            }
                         }
                     }
-                }
-                ApplicationCommand::FoundProductId { product_id } => {
-                    info!("FoundProductId({})", product_id);
-                    if let Some(sender) = self.websocket_sender.as_ref() {
-                        if sender
-                            .send(WebsocketResponseMessage::FoundProductId { product_id })
-                            .await
-                            .is_err()
-                        {
-                            error!("Internal message bus seems to be dead. Aborting!");
-                            exit(1);
+                    ApplicationCommand::FoundProductId { product_id } => {
+                        info!("FoundProductId({})", product_id);
+                        if let Some(sender) = self.websocket_sender.as_ref() {
+                            if sender
+                                .send(WebsocketResponseMessage::FoundProductId { product_id })
+                                .await
+                                .is_err()
+                            {
+                                error!("Internal message bus seems to be dead. Aborting!");
+                                exit(1);
+                            }
                         }
                     }
-                }
-                ApplicationCommand::FoundAccountAccessToken { access_token } => {
-                    info!("FoundAccountAccessToken()");
-                    if let Some(sender) = self.websocket_sender.as_ref() {
-                        if sender
-                            .send(WebsocketResponseMessage::FoundAccountAccessToken {
-                                access_token,
-                            })
-                            .await
-                            .is_err()
-                        {
-                            error!("Internal message bus seems to be dead. Aborting!");
-                            exit(1);
+                    ApplicationCommand::FoundAccountAccessToken { access_token } => {
+                        info!("FoundAccountAccessToken()");
+                        if let Some(sender) = self.websocket_sender.as_ref() {
+                            if sender
+                                .send(WebsocketResponseMessage::FoundAccountAccessToken {
+                                    access_token,
+                                })
+                                .await
+                                .is_err()
+                            {
+                                error!("Internal message bus seems to be dead. Aborting!");
+                                exit(1);
+                            }
                         }
                     }
-                }
-                ApplicationCommand::RequestAccountAccessToken {} => {
-                    info!("RequestAccountAccessToken()");
+                    ApplicationCommand::RequestAccountAccessToken {} => {
+                        info!("RequestAccountAccessToken()");
 
-                    if let Some(sender) = self.nfc_sender.as_ref() {
-                        if sender
-                            .send(NfcCommand::RequestAccountAccessToken)
-                            .await
-                            .is_err()
-                        {
-                            error!("Internal message bus seems to be dead. Aborting!");
-                            exit(1);
+                        if let Some(sender) = self.nfc_sender.as_ref() {
+                            if sender
+                                .send(NfcCommand::RequestAccountAccessToken)
+                                .await
+                                .is_err()
+                            {
+                                error!("Internal message bus seems to be dead. Aborting!");
+                                exit(1);
+                            }
                         }
                     }
-                }
-                ApplicationCommand::RequestReboot {} => {
-                    info!("RequestReboot()");
-                }
-                ApplicationCommand::RegisterNfcCard { account_id } => {
-                    info!("RegisterNfcCard({})", account_id);
+                    ApplicationCommand::RequestReboot {} => {
+                        info!("RequestReboot()");
+                    }
+                    ApplicationCommand::RegisterNfcCard { account_id } => {
+                        info!("RegisterNfcCard({})", account_id);
 
-                    if let Some(sender) = self.nfc_sender.as_ref() {
-                        if sender
-                            .send(NfcCommand::RegisterNfcCard { account_id })
-                            .await
-                            .is_err()
-                        {
-                            error!("Internal message bus seems to be dead. Aborting!");
-                            exit(1);
+                        if let Some(sender) = self.nfc_sender.as_ref() {
+                            if sender
+                                .send(NfcCommand::RegisterNfcCard { account_id })
+                                .await
+                                .is_err()
+                            {
+                                error!("Internal message bus seems to be dead. Aborting!");
+                                exit(1);
+                            }
                         }
                     }
-                }
-                ApplicationCommand::NfcCardRemoved {} => {
-                    info!("NfcCardRemoved()");
-                    if let Some(sender) = self.websocket_sender.as_ref() {
-                        if sender
-                            .send(WebsocketResponseMessage::NfcCardRemoved)
-                            .await
-                            .is_err()
-                        {
-                            error!("Internal message bus seems to be dead. Aborting!");
-                            exit(1);
+                    ApplicationCommand::NfcCardRemoved {} => {
+                        info!("NfcCardRemoved()");
+                        if let Some(sender) = self.websocket_sender.as_ref() {
+                            if sender
+                                .send(WebsocketResponseMessage::NfcCardRemoved)
+                                .await
+                                .is_err()
+                            {
+                                error!("Internal message bus seems to be dead. Aborting!");
+                                exit(1);
+                            }
                         }
                     }
-                }
-                ApplicationCommand::RegisterNfcCardSuccessful {} => {
-                    info!("RegisterNfcCardSuccessful()");
-                    if let Some(sender) = self.websocket_sender.as_ref() {
-                        if sender
-                            .send(WebsocketResponseMessage::RegisterNfcCardSuccessful)
-                            .await
-                            .is_err()
-                        {
-                            error!("Internal message bus seems to be dead. Aborting!");
-                            exit(1);
+                    ApplicationCommand::RegisterNfcCardSuccessful {} => {
+                        info!("RegisterNfcCardSuccessful()");
+                        if let Some(sender) = self.websocket_sender.as_ref() {
+                            if sender
+                                .send(WebsocketResponseMessage::RegisterNfcCardSuccessful)
+                                .await
+                                .is_err()
+                            {
+                                error!("Internal message bus seems to be dead. Aborting!");
+                                exit(1);
+                            }
                         }
                     }
-                }
-                ApplicationCommand::Error { source, message } => {
-                    warn!("Error({:?}, {:?})", source, message);
-                    if let Some(sender) = self.websocket_sender.as_ref() {
-                        if sender
-                            .send(WebsocketResponseMessage::Error { source, message })
-                            .await
-                            .is_err()
-                        {
-                            error!("Internal message bus seems to be dead. Aborting!");
-                            exit(1);
+                    ApplicationCommand::Error { source, message } => {
+                        warn!("Error({:?}, {:?})", source, message);
+                        if let Some(sender) = self.websocket_sender.as_ref() {
+                            if sender
+                                .send(WebsocketResponseMessage::Error { source, message })
+                                .await
+                                .is_err()
+                            {
+                                error!("Internal message bus seems to be dead. Aborting!");
+                                exit(1);
+                            }
                         }
                     }
-                }
-                ApplicationCommand::RequestStatusInformation {} => {
-                    info!("RequestStatusInformation()");
+                    ApplicationCommand::RequestStatusInformation {} => {
+                        info!("RequestStatusInformation()");
 
-                    let info = status::get_info().unwrap_or_else(|_| String::new());
-                    if let Some(sender) = self.websocket_sender.as_ref() {
-                        if sender
-                            .send(WebsocketResponseMessage::StatusInformation { status: info })
-                            .await
-                            .is_err()
-                        {
-                            error!("Internal message bus seems to be dead. Aborting!");
-                            exit(1);
+                        let info = status::get_info().unwrap_or_else(|_| String::new());
+                        if let Some(sender) = self.websocket_sender.as_ref() {
+                            if sender
+                                .send(WebsocketResponseMessage::StatusInformation { status: info })
+                                .await
+                                .is_err()
+                            {
+                                error!("Internal message bus seems to be dead. Aborting!");
+                                exit(1);
+                            }
                         }
                     }
                 }

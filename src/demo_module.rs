@@ -90,30 +90,38 @@ async fn run_spawn(
 
 async fn run_loop(context: ApplicationResponseContext, current_cards: Arc<Mutex<Option<String>>>) {
     loop {
-        let mut reader = std_reader::StdReader::new().unwrap();
+        run_loop_error(&context, &current_cards);
+    }
+}
 
-        while let Some(code) = reader.get_next_code().await.unwrap() {
-            let code = code.trim().to_owned();
-            if let Some(account_number) = check_code_for_account_number(&code) {
-                context.send_found_account_number(account_number).await;
-            } else if code.starts_with("nfc") {
-                let mut current_cards = current_cards.lock().await;
+async fn run_loop_error(
+    context: &ApplicationResponseContext,
+    current_cards: &Arc<Mutex<Option<String>>>,
+) -> ServiceResult<()> {
+    let mut reader = std_reader::StdReader::new()?;
 
-                if current_cards.is_none() {
-                    handle_card_authentication(&context, &code).await;
-                    *current_cards = Some(code);
-                } else {
-                    context.send_nfc_card_removed().await;
-                    *current_cards = None;
-                }
-            } else if let Ok((token_type, token)) = context.authenticate_barcode(code.clone()).await
-            {
-                context.send_token(token_type, token).await.unwrap();
+    while let Some(code) = reader.get_next_code().await? {
+        let code = code.trim().to_owned();
+        if let Some(account_number) = check_code_for_account_number(&code) {
+            context.send_found_account_number(account_number).await;
+        } else if code.starts_with("nfc") {
+            let mut current_cards = current_cards.lock().await;
+
+            if current_cards.is_none() {
+                handle_card_authentication(&context, &code).await;
+                *current_cards = Some(code);
             } else {
-                context.send_found_unknown_barcode(code).await;
+                context.send_nfc_card_removed().await;
+                *current_cards = None;
             }
+        } else if let Ok((token_type, token)) = context.authenticate_barcode(code.clone()).await {
+            context.send_token(token_type, token).await?;
+        } else {
+            context.send_found_unknown_barcode(code).await;
         }
     }
+
+    Ok(())
 }
 
 async fn handle_card_authentication(context: &ApplicationResponseContext, card: &str) {
@@ -123,16 +131,15 @@ async fn handle_card_authentication(context: &ApplicationResponseContext, card: 
         Ok((card_id, nfc_card_type)) => match nfc_card_type {
             crate::grpc::authentication::NfcCardType::GENERIC => {
                 let (card_id, token_type, token) =
-                    context.authenticate_nfc_generic(card_id).await.unwrap();
+                    context.authenticate_nfc_generic(card_id).await?;
 
-                context.send_token(token_type, token).await.unwrap();
+                context.send_token(token_type, token).await?;
             }
             _ => {
                 Result::<(), ServiceError>::Err(ServiceError::InternalError(
                     "NFC card type miss match",
                     String::new(),
-                ))
-                .unwrap();
+                ))?;
             }
         },
         Err(err) => {

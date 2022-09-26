@@ -64,7 +64,9 @@ impl WebsocketServer {
         tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
                 for (k, v) in map.lock().await.iter() {
-                    v.send(msg.clone()).await.unwrap();
+                    if let Err(e) = v.send(msg.clone()).await {
+                        error!("Cannot send websocket message: {}", e);
+                    }
                 }
             }
         });
@@ -112,8 +114,11 @@ async fn handle_connection(
 
     tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            let msg = serde_json::to_string(&msg).unwrap();
-            a.send(Message::Text(msg)).await.unwrap();
+            if let Ok(msg) = serde_json::to_string(&msg) {
+                if let Err(e) = a.send(Message::Text(msg)).await {
+                    error!("Cannot send websocket message: {}", e);
+                }
+            }
         }
     });
 

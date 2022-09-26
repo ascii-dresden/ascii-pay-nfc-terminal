@@ -41,6 +41,12 @@ async fn main() {
     );
     let isDemo = std::env::args().any(|arg| arg == "--demo");
 
+    let default_panic = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        default_panic(info);
+        std::process::exit(1);
+    }));
+
     let mut application = Application::new();
 
     let websocket_server = WebsocketServer::new(
