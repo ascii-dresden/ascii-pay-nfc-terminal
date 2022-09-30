@@ -397,13 +397,16 @@ impl Application {
         let (tx, rx) = mpsc::channel(32);
         let env = Arc::new(EnvBuilder::new().build());
 
+        let default_authority = std::env::var("GRPC_DEFAULT_AUTHORITY").unwrap_or_else(|_| "secure-pay.ascii.coffee".to_string());
+        let connection_address = std::env::var("GRPC_CONNECTION_ADDRESS").unwrap_or_else(|_| "secure-pay.ascii.coffee:443".to_string());
+
         let root_cert = read_file_to_vec(&SSL_ROOT_CERT);
         let cert = read_file_to_vec(&SSL_CERT);
         let private_key = read_file_to_vec(&SSL_PRIVATE_KEY);
         let ch = ChannelBuilder::new(env)
-            .default_authority("secure-pay.ascii.coffee")
+            .default_authority(default_authority)
             .secure_connect(
-                "secure-pay.ascii.coffee:443",
+                &connection_address,
                 ChannelCredentialsBuilder::new()
                     .root_cert(root_cert)
                     .cert(cert, private_key)
