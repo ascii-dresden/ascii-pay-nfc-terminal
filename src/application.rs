@@ -1,4 +1,4 @@
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::Read;
 use std::{process::exit, sync::Arc};
 
@@ -378,8 +378,7 @@ impl ApplicationRequestContext {
 
 fn read_file_to_vec(filename: &str) -> Vec<u8> {
     let mut f = File::open(&filename).expect("no file found");
-    let metadata = fs::metadata(&filename).expect("unable to read metadata");
-    let mut buffer = vec![0; metadata.len() as usize];
+    let mut buffer = Vec::new();
     f.read_to_end(&mut buffer).expect("buffer overflow");
     buffer
 }
