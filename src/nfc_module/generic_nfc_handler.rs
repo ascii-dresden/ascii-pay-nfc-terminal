@@ -45,7 +45,7 @@ impl GenericNfcHandler {
                 info!("Insert 'Yubikey Neo' card");
                 true
             }
-            b"3B\x8A\x80\x01\x00\x31\xC1\x73\xC8\x40\x00\x00\x90\x00\x90" => {
+            b"\x3B\x8A\x80\x01\x00\x31\xC1\x73\xC8\x40\x00\x00\x90\x00\x90" => {
                 info!("Insert 'MiFare DESFire EV2' card");
                 true
             }
