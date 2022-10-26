@@ -33,6 +33,10 @@ impl GenericNfcHandler {
                 info!("Insert 'MiFare Classic' card");
                 true
             }
+            b"\x3B\x87\x80\x01\x80\x31\xC0\x73\xD6\x31\xC0\x23" = {
+                info1("Insert 'MiFare Classic/Student Card'");
+                true
+            }
             b"\x3B\x8F\x80\x01\x80\x4F\x0C\xA0\x00\x00\x03\x06\x03\x00\x03\x00\x00\x00\x00\x68" => {
                 info!("Insert 'MiFare Ultralight' card");
                 true
@@ -45,6 +49,7 @@ impl GenericNfcHandler {
                 info!("Insert 'MiFare DESFire EV2' card");
                 true
             }
+
             _ => false,
         }
     }
