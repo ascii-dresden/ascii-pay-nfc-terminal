@@ -49,7 +49,10 @@ impl GenericNfcHandler {
                 info!("Insert 'MiFare DESFire EV2' card");
                 true
             }
-
+            b"\x3B\x8F\x80\x01\x4A\x43\x4F\x50\x33\x20\x41\x54\x53\x20\x43\x48\xFF\xFF\xFF\x99" => {
+                info!("Insert 'Some Samsung SmartWatch'");
+                true
+            }
             _ => false,
         }
     }
