@@ -53,6 +53,10 @@ impl GenericNfcHandler {
                 info!("Insert 'Some Samsung SmartWatch'");
                 true
             }
+            b"\x3B\x85\x80\x01\x5A\x43\x56\x44\x56\x59" => {
+                info!("Insert 'DVB Monatskarte'");
+                true
+            }
             _ => false,
         }
     }
