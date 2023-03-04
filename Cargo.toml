@@ -5,7 +5,7 @@ authors = ["Lars Westermann <lars-westermann@live.de>"]
 edition = "2021"
 
 [[bin]]
-name = "ascii-pay-server"
+name = "ascii-pay-nfc-terminal"
 path = "src/main.rs"
 
 [dependencies]

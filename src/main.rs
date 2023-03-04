@@ -54,7 +54,7 @@ async fn main() {
         application.get_response_context(),
         application.get_nfc_receiver(),
     );
-    tokio::spawn(nfc_module.run());
+    tokio::spawn(nfc_module.run(true));
 
     tokio::spawn(application.run());
     match signal::ctrl_c().await {
