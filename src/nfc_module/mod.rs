@@ -28,6 +28,7 @@ use crate::application::ApplicationResponseContext;
 use crate::websocket_server::CardTypeDto;
 use crate::ServiceResult;
 
+use self::nfc::simulation_card::SimulationCard;
 use self::nfc::utils;
 use self::nfc_card_handler::NfcCardHandlerWrapper;
 
@@ -62,7 +63,7 @@ impl NfcModule {
         Self { context, recv }
     }
 
-    pub async fn run(self) -> ServiceResult<()> {
+    pub async fn run(self, useSimulation: bool) -> ServiceResult<()> {
         info!("Start nfc module");
 
         let current_cards: CardMapMutex = Arc::new(Mutex::new(HashMap::new()));
@@ -74,7 +75,12 @@ impl NfcModule {
         let curr_cards = current_cards.clone();
         tokio::spawn(run_spawn(spawn_context, recv, curr_cards));
 
-        task::spawn_blocking(move || run_loop(loop_context, current_cards)).await?;
+        if useSimulation {
+            run_simulation(loop_context, current_cards).await;
+        } else {
+            task::spawn_blocking(move || run_loop(loop_context, current_cards)).await?;
+        }
+
         Ok(())
     }
 }
@@ -232,6 +238,26 @@ fn run_loop(context: ApplicationResponseContext, current_cards: CardMapMutex) {
     }
 }
 
+async fn run_simulation(context: ApplicationResponseContext, current_cards: CardMapMutex) {
+    let mut reader = std_reader::StdReader::new().unwrap();
+
+    while let Some(code) = reader.get_next_code().await.unwrap() {
+        let code = code.trim().to_owned();
+
+        let mut current_cards = current_cards.lock().await;
+
+        if current_cards.is_empty() {
+            let card = NfcCard::simulate(SimulationCard::new());
+            let card = handle_card_authentication(&context, card).await;
+            current_cards.insert("demo".into(), card);
+        } else {
+            current_cards.clear();
+            info!("Remove nfc card");
+            context.send_nfc_card_removed().await;
+        }
+    }
+}
+
 async fn handle_card_authentication(
     context: &ApplicationResponseContext,
     card: NfcCard,
@@ -356,4 +382,28 @@ pub async fn identify_atr(atr: &[u8]) -> Vec<String> {
     }
 
     result
+}
+
+mod std_reader {
+    use tokio::io::{self, AsyncBufReadExt, BufReader, Lines, Stdin};
+
+    use crate::ServiceResult;
+
+    pub struct StdReader {
+        lines: Lines<BufReader<Stdin>>,
+    }
+
+    impl StdReader {
+        pub fn new() -> ServiceResult<Self> {
+            let stdin = io::stdin();
+            let reader = BufReader::new(stdin);
+            let lines = reader.lines();
+
+            Ok(Self { lines })
+        }
+
+        pub async fn get_next_code(&mut self) -> ServiceResult<Option<String>> {
+            Ok(self.lines.next_line().await?)
+        }
+    }
 }
