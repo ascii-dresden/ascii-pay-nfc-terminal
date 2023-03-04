@@ -4,12 +4,8 @@
 
 #[macro_use]
 extern crate hex_literal;
-#[macro_use]
-extern crate serde_derive;
 
 pub mod application;
-pub mod env;
-pub mod grpc;
 
 mod errors;
 use env_logger::Env;
@@ -21,9 +17,6 @@ pub mod nfc_module;
 use nfc_module::NfcModule;
 mod qr_module;
 use qr_module::QrModule;
-mod demo_module;
-use demo_module::DemoModule;
-pub mod status;
 
 use std::process::exit;
 
@@ -39,7 +32,6 @@ async fn main() {
             "ascii_pay_nfc_terminal=info,ascii_pay_nfc_terminal::qr_module=error",
         ),
     );
-    let isDemo = std::env::args().any(|arg| arg == "--demo");
 
     let default_panic = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -55,22 +47,14 @@ async fn main() {
     );
     tokio::spawn(websocket_server.run());
 
-    if isDemo {
-        let demo_module = DemoModule::new(
-            application.get_response_context(),
-            application.get_nfc_receiver(),
-        );
-        tokio::spawn(demo_module.run());
-    } else {
-        let qr_module = QrModule::new(application.get_response_context());
-        tokio::spawn(qr_module.run());
+    let qr_module = QrModule::new(application.get_response_context());
+    tokio::spawn(qr_module.run());
 
-        let nfc_module = NfcModule::new(
-            application.get_response_context(),
-            application.get_nfc_receiver(),
-        );
-        tokio::spawn(nfc_module.run());
-    }
+    let nfc_module = NfcModule::new(
+        application.get_response_context(),
+        application.get_nfc_receiver(),
+    );
+    tokio::spawn(nfc_module.run());
 
     tokio::spawn(application.run());
     match signal::ctrl_c().await {

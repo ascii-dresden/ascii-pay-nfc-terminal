@@ -1,5 +1,3 @@
-use uuid::Uuid;
-
 use crate::{application::ApplicationResponseContext, ServiceResult};
 
 use super::{
@@ -53,16 +51,105 @@ impl NfcCardHandlerWrapper {
         }
     }
 
-    pub async fn handle_card_init(
-        &self,
+    pub async fn handle_card_identify_response(
+        &mut self,
         context: &ApplicationResponseContext,
-        account_id: Uuid,
+        card_id: Vec<u8>,
     ) -> ServiceResult<()> {
         match self {
-            Self::Iso14443(handler) => handler.handle_card_init(context, account_id).await,
-            Self::MiFareDESFire(handler) => handler.handle_card_init(context, account_id).await,
-            Self::MiFareClassic(handler) => handler.handle_card_init(context, account_id).await,
-            Self::UnsupportedCard(handler) => handler.handle_card_init(context, account_id).await,
+            Self::Iso14443(handler) => {
+                handler
+                    .handle_card_identify_response(context, card_id)
+                    .await
+            }
+            Self::MiFareDESFire(handler) => {
+                handler
+                    .handle_card_identify_response(context, card_id)
+                    .await
+            }
+            Self::MiFareClassic(handler) => {
+                handler
+                    .handle_card_identify_response(context, card_id)
+                    .await
+            }
+            Self::UnsupportedCard(handler) => {
+                handler
+                    .handle_card_identify_response(context, card_id)
+                    .await
+            }
+        }
+    }
+
+    pub async fn handle_card_challenge_response(
+        &self,
+        context: &ApplicationResponseContext,
+        card_id: Vec<u8>,
+        challenge: Vec<u8>,
+    ) -> ServiceResult<()> {
+        match self {
+            Self::Iso14443(handler) => {
+                handler
+                    .handle_card_challenge_response(context, card_id, challenge)
+                    .await
+            }
+            Self::MiFareDESFire(handler) => {
+                handler
+                    .handle_card_challenge_response(context, card_id, challenge)
+                    .await
+            }
+            Self::MiFareClassic(handler) => {
+                handler
+                    .handle_card_challenge_response(context, card_id, challenge)
+                    .await
+            }
+            Self::UnsupportedCard(handler) => {
+                handler
+                    .handle_card_challenge_response(context, card_id, challenge)
+                    .await
+            }
+        }
+    }
+
+    pub async fn handle_card_response_response(
+        &self,
+        context: &ApplicationResponseContext,
+        card_id: Vec<u8>,
+        session_key: Vec<u8>,
+    ) -> ServiceResult<()> {
+        match self {
+            Self::Iso14443(handler) => {
+                handler
+                    .handle_card_response_response(context, card_id, session_key)
+                    .await
+            }
+            Self::MiFareDESFire(handler) => {
+                handler
+                    .handle_card_response_response(context, card_id, session_key)
+                    .await
+            }
+            Self::MiFareClassic(handler) => {
+                handler
+                    .handle_card_response_response(context, card_id, session_key)
+                    .await
+            }
+            Self::UnsupportedCard(handler) => {
+                handler
+                    .handle_card_response_response(context, card_id, session_key)
+                    .await
+            }
+        }
+    }
+
+    pub async fn handle_card_register(
+        &self,
+        context: &ApplicationResponseContext,
+        card_id: Vec<u8>,
+    ) -> ServiceResult<()> {
+        match self {
+            Self::Iso14443(handler) => handler.handle_card_register(context, card_id).await,
+            Self::MiFareDESFire(handler) => handler.handle_card_register(context, card_id).await,
+            Self::MiFareClassic(handler) => handler.handle_card_register(context, card_id).await,
+            Self::UnsupportedCard(handler) => handler.handle_card_register(context, card_id).await,
         }
     }
 }

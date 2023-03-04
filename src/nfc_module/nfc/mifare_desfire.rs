@@ -140,7 +140,7 @@ impl Status {
             0xEE => Status::EepromError,
             0xF0 => Status::FileNotFound,
             0xF1 => Status::FileIntegrityError,
-            _ => panic!("Unknown status code: {}", code),
+            _ => panic!("Unknown status code: {code}"),
         }
     }
 

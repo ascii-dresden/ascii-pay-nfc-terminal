@@ -3,6 +3,7 @@ use block_modes::cipher::{BlockCipher, BlockDecrypt, BlockEncrypt, NewBlockCiphe
 use block_modes::{BlockMode, Cbc};
 use des::TdesEde2;
 use generic_array::GenericArray;
+use rand::RngCore;
 
 use super::NfcResult;
 
@@ -140,8 +141,6 @@ pub fn crc_test() {
 }
 
 pub fn generate_key<const N: usize>() -> [u8; N] {
-    use rand_core::RngCore;
-
     let mut data = [0u8; N];
     rand::thread_rng().fill_bytes(&mut data);
     data

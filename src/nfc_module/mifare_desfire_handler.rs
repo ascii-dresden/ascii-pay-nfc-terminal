@@ -1,12 +1,8 @@
-use log::{error, info};
-use uuid::Uuid;
+use log::info;
 
-use crate::{
-    application::ApplicationResponseContext, nfc_module::nfc::utils, RemoteErrorType, ServiceError,
-    ServiceResult,
-};
+use crate::{application::ApplicationResponseContext, ServiceResult};
 
-use super::nfc::{mifare_desfire, MiFareDESFireCard, NfcCard};
+use super::nfc::{mifare_desfire, mifare_utils::generate_key, MiFareDESFireCard, NfcCard};
 
 const DEFAULT_KEY: [u8; 16] = hex!("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
 const PICC_KEY: [u8; 16] = hex!("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
@@ -21,12 +17,15 @@ pub struct MiFareDESFireHandler {
 }
 
 impl MiFareDESFireHandler {
-    fn get_card_id(&self) -> ServiceResult<String> {
-        Ok(format!(
-            "{}:{}",
-            utils::bytes_to_string(&self.card.card.get_atr()?),
-            utils::bytes_to_string(&self.card.get_version()?.id()),
-        ))
+    fn get_card_id(&self) -> ServiceResult<Vec<u8>> {
+        let atr = self.card.card.get_atr()?;
+        let id = self.card.get_version()?.id();
+
+        let mut card_id = Vec::<u8>::with_capacity(atr.len() + id.len());
+        card_id.extend(&atr);
+        card_id.extend(&id);
+
+        Ok(card_id)
     }
 
     fn is_writeable(&self) -> ServiceResult<bool> {
@@ -227,105 +226,87 @@ impl MiFareDESFireHandler {
         self.card.into()
     }
 
-    #[allow(unreachable_patterns)]
     pub async fn handle_card_authentication(
         &self,
         context: &ApplicationResponseContext,
     ) -> ServiceResult<()> {
-        if let Ok((balance, last_transaction)) = self.read_mensa_data() {
-            info!(
-                "Mensa:\nBalance: {:.2} €\nLast transaction: {:.2} €",
-                (balance as f32) / 100.0,
-                (last_transaction as f32) / 100.0
-            );
-        }
         let card_id = self.get_card_id()?;
 
-        match context.authenticate_nfc_type(card_id.clone()).await {
-            Ok((card_id, nfc_card_type)) => match nfc_card_type {
-                crate::grpc::authentication::NfcCardType::Generic => {
-                    let (card_id, token_type, token) =
-                        context.authenticate_nfc_generic(card_id).await?;
+        context
+            .send_nfc_identify_request(card_id, "MiFare DesFire Card".into())
+            .await;
 
-                    context.send_token(token_type, token).await?;
-                    return Ok(());
-                }
-                crate::grpc::authentication::NfcCardType::MifareDesfire => {}
-                _ => {
-                    context
-                        .send_error("NFC Reader", "NFC card type miss match")
-                        .await;
-                    return Err(ServiceError::InternalError(
-                        "NFC card type miss match",
-                        String::new(),
-                    ));
-                }
-            },
-            Err(err) => {
-                if let ServiceError::RemoteError(ref errorType, _) = err {
-                    if *errorType == RemoteErrorType::NotFound {
-                        if self.is_writeable().unwrap_or(false) {
-                            context
-                                .send_found_unknown_nfc_card(
-                                    card_id,
-                                    "MiFare DESFire Card".to_owned(),
-                                )
-                                .await;
-                        } else {
-                            context
-                                .send_found_unknown_nfc_card(card_id, "Generic NFC Card".to_owned())
-                                .await;
-                        }
-                    } else {
-                        error!("{}", err);
-                        context.send_error("GRPC Service", err.to_string()).await;
-                    }
-                } else {
-                    error!("{}", err);
-                    context.send_error("GRPC Service", err.to_string()).await;
-                }
+        Ok(())
+    }
 
-                return Ok(());
-            }
-        }
+    pub async fn handle_card_identify_response(
+        &self,
+        context: &ApplicationResponseContext,
+        card_id: Vec<u8>,
+    ) -> ServiceResult<()> {
+        let card_id = self.get_card_id()?;
 
         self.card.select_application(ASCII_APPLICATION)?;
 
         let ek_rndB = self.card.authenticate_phase1(0)?;
-        let (card_id, dk_rndA_rndBshifted) = context
-            .authenticate_nfc_mifare_desfire_phase1(card_id, &ek_rndB)
-            .await?;
+        context.send_nfc_challenge_request(card_id, ek_rndB).await;
 
-        let ek_rndAshifted_card = self.card.authenticate_phase2(&dk_rndA_rndBshifted)?;
-        let (card_id, session_key, token_type, token) = context
-            .authenticate_nfc_mifare_desfire_phase2(
-                card_id,
-                &dk_rndA_rndBshifted,
-                &ek_rndAshifted_card,
-            )
-            .await?;
-
-        context.send_token(token_type, token).await?;
         Ok(())
     }
 
-    pub async fn handle_card_init(
+    pub async fn handle_card_challenge_response(
         &self,
         context: &ApplicationResponseContext,
-        account_id: Uuid,
+        card_id: Vec<u8>,
+        challenge: Vec<u8>,
+    ) -> ServiceResult<()> {
+        let dk_rndA_rndBshifted = challenge.clone();
+
+        let ek_rndAshifted = self.card.authenticate_phase2(&dk_rndA_rndBshifted)?;
+        context
+            .send_nfc_response_request(card_id, challenge, ek_rndAshifted)
+            .await;
+
+        Ok(())
+    }
+
+    pub async fn handle_card_response_response(
+        &self,
+        context: &ApplicationResponseContext,
+        card_id: Vec<u8>,
+        session_key: Vec<u8>,
+    ) -> ServiceResult<()> {
+        // Nothing to do
+        Ok(())
+    }
+
+    pub async fn handle_card_register(
+        &self,
+        context: &ApplicationResponseContext,
+        card_id: Vec<u8>,
     ) -> ServiceResult<()> {
         let card_id = self.get_card_id()?;
 
         if self.is_writeable().unwrap_or(false) {
-            let (card_id, key) = context
-                .authenticate_nfc_mifare_desfire_init_card(card_id, account_id)
-                .await?;
-
+            let key = generate_key::<16>();
             self.init_ascii_card(&key)?;
+            context
+                .send_nfc_register_request(
+                    "MiFare DesFire Card".into(),
+                    card_id,
+                    crate::websocket_server::CardTypeDto::AsciiMifare,
+                    Some(key.into()),
+                )
+                .await;
         } else {
-            let card_id = context
-                .authenticate_nfc_generic_init_card(card_id, account_id)
-                .await?;
+            context
+                .send_nfc_register_request(
+                    "Generic NFC Card".into(),
+                    card_id,
+                    crate::websocket_server::CardTypeDto::NfcId,
+                    None,
+                )
+                .await;
         }
 
         Ok(())

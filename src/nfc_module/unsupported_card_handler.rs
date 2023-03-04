@@ -1,5 +1,4 @@
 use log::info;
-use uuid::Uuid;
 
 use crate::{
     application::ApplicationResponseContext,
@@ -57,11 +56,41 @@ impl UnsupportedCardHandler {
         Ok(())
     }
 
-    pub async fn handle_card_init(
+    pub async fn handle_card_identify_response(
         &self,
         context: &ApplicationResponseContext,
-        account_id: Uuid,
+        card_id: Vec<u8>,
     ) -> ServiceResult<()> {
+        // Nothing to do
+        Ok(())
+    }
+
+    pub async fn handle_card_challenge_response(
+        &self,
+        context: &ApplicationResponseContext,
+        card_id: Vec<u8>,
+        challenge: Vec<u8>,
+    ) -> ServiceResult<()> {
+        // Nothing to do
+        Ok(())
+    }
+
+    pub async fn handle_card_response_response(
+        &self,
+        context: &ApplicationResponseContext,
+        card_id: Vec<u8>,
+        session_key: Vec<u8>,
+    ) -> ServiceResult<()> {
+        // Nothing to do
+        Ok(())
+    }
+
+    pub async fn handle_card_register(
+        &self,
+        context: &ApplicationResponseContext,
+        card_id: Vec<u8>,
+    ) -> ServiceResult<()> {
+        // Nothing to do
         Ok(())
     }
 }

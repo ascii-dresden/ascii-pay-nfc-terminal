@@ -23,9 +23,9 @@ use pcsc::{Context, Protocols, ReaderState, Scope, ShareMode, State, PNP_NOTIFIC
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::{mpsc, Mutex};
-use uuid::Uuid;
 
 use crate::application::ApplicationResponseContext;
+use crate::websocket_server::CardTypeDto;
 use crate::ServiceResult;
 
 use self::nfc::utils;
@@ -33,8 +33,23 @@ use self::nfc_card_handler::NfcCardHandlerWrapper;
 
 #[derive(Debug, Clone)]
 pub enum NfcCommand {
-    RequestAccountAccessToken,
-    RegisterNfcCard { account_id: Uuid },
+    IdentifyResponse {
+        card_id: Vec<u8>,
+        card_type: CardTypeDto,
+    },
+    ChallengeResponse {
+        card_id: Vec<u8>,
+        challenge: Vec<u8>,
+    },
+    ResponseResponse {
+        card_id: Vec<u8>,
+        session_key: Vec<u8>,
+    },
+
+    Register {
+        card_id: Vec<u8>,
+    },
+    Reauthenticate,
 }
 
 pub struct NfcModule {
@@ -75,11 +90,24 @@ async fn run_spawn(
             if let Some(key) = current_cards.keys().next().cloned() {
                 if let Some(card) = current_cards.remove(&key) {
                     let card = match command {
-                        NfcCommand::RequestAccountAccessToken => {
+                        NfcCommand::Reauthenticate => {
                             handle_card_authentication(&context, card).await
                         }
-                        NfcCommand::RegisterNfcCard { account_id } => {
-                            handle_card_init(&context, card, account_id).await
+                        NfcCommand::IdentifyResponse { card_id, card_type } => {
+                            handle_card_identify_response(&context, card, card_id, card_type).await
+                        }
+                        NfcCommand::ChallengeResponse { card_id, challenge } => {
+                            handle_card_challenge_response(&context, card, card_id, challenge).await
+                        }
+                        NfcCommand::ResponseResponse {
+                            card_id,
+                            session_key,
+                        } => {
+                            handle_card_response_response(&context, card, card_id, session_key)
+                                .await
+                        }
+                        NfcCommand::Register { card_id } => {
+                            handle_card_register(&context, card, card_id).await
                         }
                     };
 
@@ -87,7 +115,16 @@ async fn run_spawn(
                 } else {
                     #[allow(clippy::single_match)]
                     match command {
-                        NfcCommand::RegisterNfcCard { account_id } => {
+                        NfcCommand::IdentifyResponse { .. } => {
+                            context.send_error("NFC Reader", "No nfc card found!").await;
+                        }
+                        NfcCommand::ChallengeResponse { .. } => {
+                            context.send_error("NFC Reader", "No nfc card found!").await;
+                        }
+                        NfcCommand::ResponseResponse { .. } => {
+                            context.send_error("NFC Reader", "No nfc card found!").await;
+                        }
+                        NfcCommand::Register { .. } => {
                             context.send_error("NFC Reader", "No nfc card found!").await;
                         }
                         _ => {}
@@ -96,7 +133,16 @@ async fn run_spawn(
             } else {
                 #[allow(clippy::single_match)]
                 match command {
-                    NfcCommand::RegisterNfcCard { account_id } => {
+                    NfcCommand::IdentifyResponse { .. } => {
+                        context.send_error("NFC Reader", "No nfc card found!").await;
+                    }
+                    NfcCommand::ChallengeResponse { .. } => {
+                        context.send_error("NFC Reader", "No nfc card found!").await;
+                    }
+                    NfcCommand::ResponseResponse { .. } => {
+                        context.send_error("NFC Reader", "No nfc card found!").await;
+                    }
+                    NfcCommand::Register { .. } => {
                         context.send_error("NFC Reader", "No nfc card found!").await;
                     }
                     _ => {}
@@ -200,16 +246,81 @@ async fn handle_card_authentication(
     handler.finish()
 }
 
-async fn handle_card_init(
+async fn handle_card_register(
     context: &ApplicationResponseContext,
     card: NfcCard,
-    account_id: Uuid,
+    card_id: Vec<u8>,
 ) -> NfcCard {
     let handler = NfcCardHandlerWrapper::new(card);
-    match handler.handle_card_init(context, account_id).await {
-        Ok(_) => {
-            context.send_register_nfc_card_successful().await;
+    match handler.handle_card_register(context, card_id).await {
+        Ok(_) => {}
+        Err(e) => {
+            error!("Could not register nfc card: {}", e);
+            context
+                .send_error("NFC Reader", "Could not register NFC card!")
+                .await
         }
+    }
+    handler.finish()
+}
+
+async fn handle_card_identify_response(
+    context: &ApplicationResponseContext,
+    mut card: NfcCard,
+    card_id: Vec<u8>,
+    card_type: CardTypeDto,
+) -> NfcCard {
+    card.set_card_type(Some(card_type));
+    let mut handler = NfcCardHandlerWrapper::new(card);
+    match handler
+        .handle_card_identify_response(context, card_id)
+        .await
+    {
+        Ok(_) => {}
+        Err(e) => {
+            error!("Could not register nfc card: {}", e);
+            context
+                .send_error("NFC Reader", "Could not register NFC card!")
+                .await
+        }
+    }
+    handler.finish()
+}
+
+async fn handle_card_challenge_response(
+    context: &ApplicationResponseContext,
+    card: NfcCard,
+    card_id: Vec<u8>,
+    challenge: Vec<u8>,
+) -> NfcCard {
+    let handler = NfcCardHandlerWrapper::new(card);
+    match handler
+        .handle_card_challenge_response(context, card_id, challenge)
+        .await
+    {
+        Ok(_) => {}
+        Err(e) => {
+            error!("Could not register nfc card: {}", e);
+            context
+                .send_error("NFC Reader", "Could not register NFC card!")
+                .await
+        }
+    }
+    handler.finish()
+}
+
+async fn handle_card_response_response(
+    context: &ApplicationResponseContext,
+    card: NfcCard,
+    card_id: Vec<u8>,
+    session_key: Vec<u8>,
+) -> NfcCard {
+    let handler = NfcCardHandlerWrapper::new(card);
+    match handler
+        .handle_card_response_response(context, card_id, session_key)
+        .await
+    {
+        Ok(_) => {}
         Err(e) => {
             error!("Could not register nfc card: {}", e);
             context
