@@ -34,7 +34,7 @@ impl From<std::io::Error> for NfcError {
 pub fn bytes_to_string(bytes: &[u8]) -> String {
     bytes
         .iter()
-        .map(|x| format!("{:02X}", x))
+        .map(|x| format!("{x:02X}"))
         .collect::<Vec<String>>()
         .join(" ")
 }
@@ -44,7 +44,7 @@ pub fn bytes_to_bytestring(bytes: &[u8]) -> String {
         "b\"{}\"",
         bytes
             .iter()
-            .map(|x| format!("{:02X}", x))
+            .map(|x| format!("{x:02X}"))
             .collect::<Vec<String>>()
             .join("\\x")
     )

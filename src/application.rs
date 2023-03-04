@@ -1,55 +1,36 @@
 use std::fs::File;
 use std::io::Read;
-use std::{process::exit, sync::Arc};
+use std::process::exit;
 
-use grpcio::{ChannelBuilder, ChannelCredentialsBuilder, EnvBuilder};
+use base64::engine::general_purpose;
+use base64::Engine;
+
 use log::{error, info, warn};
-use tokio::sync::{mpsc, Mutex};
-use uuid::Uuid;
+use tokio::sync::mpsc;
 
-use crate::env::{SSL_CERT, SSL_PRIVATE_KEY, SSL_ROOT_CERT};
-use crate::grpc::authentication::{AsciiPayAuthenticationClient, NfcCardType, TokenType};
-use crate::nfc_module::{nfc::utils, NfcCommand};
-use crate::websocket_server::WebsocketResponseMessage;
-use crate::{status, ServiceResult};
+use crate::{
+    nfc_module::NfcCommand,
+    websocket_server::{CardTypeDto, WebsocketRequestMessage, WebsocketResponseMessage},
+};
 
 enum ApplicationCommand {
-    FoundUnknownBarcode { code: String },
-    FoundAccountNumber { account_number: String },
-    FoundUnknownNfcCard { id: String, name: String },
-    FoundProductId { product_id: String },
-    FoundAccountAccessToken { access_token: String },
-    RequestAccountAccessToken,
-    RequestReboot,
-    RegisterNfcCard { account_id: Uuid },
-    NfcCardRemoved,
-    RegisterNfcCardSuccessful,
+    Response(WebsocketResponseMessage),
+    Request(WebsocketRequestMessage),
     Error { source: String, message: String },
-    RequestStatusInformation,
 }
 
 #[derive(Clone)]
 pub struct ApplicationResponseContext {
     sender: mpsc::Sender<ApplicationCommand>,
-    grpc_client: Arc<Mutex<AsciiPayAuthenticationClient>>,
 }
 
 impl ApplicationResponseContext {
-    pub async fn send_found_unknown_barcode(&self, code: String) {
+    pub async fn send_barcode_identify_request(&self, barcode: String) {
         if self
             .sender
-            .send(ApplicationCommand::FoundUnknownBarcode { code })
-            .await
-            .is_err()
-        {
-            error!("Internal message bus seems to be dead. Aborting!");
-            exit(1);
-        }
-    }
-    pub async fn send_found_account_number(&self, account_number: String) {
-        if self
-            .sender
-            .send(ApplicationCommand::FoundAccountNumber { account_number })
+            .send(ApplicationCommand::Response(
+                WebsocketResponseMessage::BarcodeIdentifyRequest { barcode },
+            ))
             .await
             .is_err()
         {
@@ -58,10 +39,15 @@ impl ApplicationResponseContext {
         }
     }
 
-    pub async fn send_found_unknown_nfc_card(&self, id: String, name: String) {
+    pub async fn send_nfc_identify_request(&self, card_id: Vec<u8>, name: String) {
         if self
             .sender
-            .send(ApplicationCommand::FoundUnknownNfcCard { id, name })
+            .send(ApplicationCommand::Response(
+                WebsocketResponseMessage::NfcIdentifyRequest {
+                    card_id: general_purpose::STANDARD.encode(card_id),
+                    name,
+                },
+            ))
             .await
             .is_err()
         {
@@ -70,10 +56,15 @@ impl ApplicationResponseContext {
         }
     }
 
-    pub async fn send_found_product_id(&self, product_id: String) {
+    pub async fn send_nfc_challenge_request(&self, card_id: Vec<u8>, request: Vec<u8>) {
         if self
             .sender
-            .send(ApplicationCommand::FoundProductId { product_id })
+            .send(ApplicationCommand::Response(
+                WebsocketResponseMessage::NfcChallengeRequest {
+                    card_id: general_purpose::STANDARD.encode(card_id),
+                    request: general_purpose::STANDARD.encode(request),
+                },
+            ))
             .await
             .is_err()
         {
@@ -82,10 +73,21 @@ impl ApplicationResponseContext {
         }
     }
 
-    pub async fn send_found_account_access_token(&self, access_token: String) {
+    pub async fn send_nfc_response_request(
+        &self,
+        card_id: Vec<u8>,
+        challenge: Vec<u8>,
+        response: Vec<u8>,
+    ) {
         if self
             .sender
-            .send(ApplicationCommand::FoundAccountAccessToken { access_token })
+            .send(ApplicationCommand::Response(
+                WebsocketResponseMessage::NfcResponseRequest {
+                    card_id: general_purpose::STANDARD.encode(card_id),
+                    challenge: general_purpose::STANDARD.encode(challenge),
+                    response: general_purpose::STANDARD.encode(response),
+                },
+            ))
             .await
             .is_err()
         {
@@ -97,7 +99,9 @@ impl ApplicationResponseContext {
     pub async fn send_nfc_card_removed(&self) {
         if self
             .sender
-            .send(ApplicationCommand::NfcCardRemoved)
+            .send(ApplicationCommand::Response(
+                WebsocketResponseMessage::NfcCardRemoved,
+            ))
             .await
             .is_err()
         {
@@ -106,10 +110,23 @@ impl ApplicationResponseContext {
         }
     }
 
-    pub async fn send_register_nfc_card_successful(&self) {
+    pub async fn send_nfc_register_request(
+        &self,
+        name: String,
+        card_id: Vec<u8>,
+        card_type: CardTypeDto,
+        data: Option<Vec<u8>>,
+    ) {
         if self
             .sender
-            .send(ApplicationCommand::RegisterNfcCardSuccessful)
+            .send(ApplicationCommand::Response(
+                WebsocketResponseMessage::NfcRegisterRequest {
+                    name,
+                    card_id: general_purpose::STANDARD.encode(card_id),
+                    card_type,
+                    data: data.map(|d| general_purpose::STANDARD.encode(d)),
+                },
+            ))
             .await
             .is_err()
         {
@@ -132,178 +149,6 @@ impl ApplicationResponseContext {
             exit(1);
         }
     }
-
-    pub async fn send_token(&self, token_type: TokenType, token: String) -> ServiceResult<()> {
-        match token_type {
-            crate::grpc::authentication::TokenType::AccountAccessToken => {
-                self.send_found_account_access_token(token).await;
-            }
-            crate::grpc::authentication::TokenType::ProductId => {
-                self.send_found_product_id(token).await;
-            }
-        }
-
-        Ok(())
-    }
-
-    pub async fn authenticate_barcode(&self, code: String) -> ServiceResult<(TokenType, String)> {
-        let req = crate::grpc::authentication::AuthenticateBarcodeRequest { code };
-
-        info!("authenticate_barcode: {:?}", req);
-        let res = self
-            .grpc_client
-            .lock()
-            .await
-            .authenticate_barcode_async(&req)?
-            .await?;
-        info!("    -> {:?}", res);
-
-        let token_type = match res.token_type {
-            0 => TokenType::AccountAccessToken,
-            _ => TokenType::ProductId,
-        };
-        Ok((token_type, res.token))
-    }
-
-    pub async fn authenticate_nfc_type(
-        &self,
-        card_id: String,
-    ) -> ServiceResult<(String, NfcCardType)> {
-        let req = crate::grpc::authentication::AuthenticateNfcTypeRequest { card_id };
-
-        info!("authenticate_nfc_type: {:?}", req);
-        let res = self
-            .grpc_client
-            .lock()
-            .await
-            .authenticate_nfc_type_async(&req)?
-            .await?;
-        info!("    -> {:?}", res);
-
-        let token_type = match res.token_type {
-            0 => NfcCardType::Generic,
-            _ => NfcCardType::MifareDesfire,
-        };
-        Ok((res.card_id, token_type))
-    }
-
-    pub async fn authenticate_nfc_generic(
-        &self,
-        card_id: String,
-    ) -> ServiceResult<(String, TokenType, String)> {
-        let req = crate::grpc::authentication::AuthenticateNfcGenericRequest { card_id };
-
-        info!("authenticate_nfc_generic: {:?}", req);
-        let res = self
-            .grpc_client
-            .lock()
-            .await
-            .authenticate_nfc_generic_async(&req)?
-            .await?;
-        info!("    -> {:?}", res);
-
-        let token_type = match res.token_type {
-            0 => TokenType::AccountAccessToken,
-            _ => TokenType::ProductId,
-        };
-        Ok((res.card_id, token_type, res.token))
-    }
-
-    pub async fn authenticate_nfc_mifare_desfire_phase1(
-        &self,
-        card_id: String,
-        ek_rndB: &[u8],
-    ) -> ServiceResult<(String, Vec<u8>)> {
-        let req = crate::grpc::authentication::AuthenticateNfcMifareDesfirePhase1Request {
-            card_id,
-            ek_rnd_b: utils::bytes_to_string(ek_rndB),
-        };
-
-        info!("authenticate_nfc_mifare_desfire_phase1: {:?}", req);
-        let res = self
-            .grpc_client
-            .lock()
-            .await
-            .authenticate_nfc_mifare_desfire_phase1_async(&req)?
-            .await?;
-        info!("    -> {:?}", res);
-        Ok((res.card_id, utils::str_to_bytes(&res.dk_rnd_a_rnd_bshifted)))
-    }
-
-    pub async fn authenticate_nfc_mifare_desfire_phase2(
-        &self,
-        card_id: String,
-        dk_rndA_rndBshifted: &[u8],
-        ek_rndAshifted_card: &[u8],
-    ) -> ServiceResult<(String, Vec<u8>, TokenType, String)> {
-        let req = crate::grpc::authentication::AuthenticateNfcMifareDesfirePhase2Request {
-            card_id,
-            dk_rnd_a_rnd_bshifted: utils::bytes_to_string(dk_rndA_rndBshifted),
-            ek_rnd_ashifted_card: utils::bytes_to_string(ek_rndAshifted_card),
-        };
-
-        info!("authenticate_nfc_mifare_desfire_phase2: {:?}", req);
-        let res = self
-            .grpc_client
-            .lock()
-            .await
-            .authenticate_nfc_mifare_desfire_phase2_async(&req)?
-            .await?;
-        info!("    -> {:?}", res);
-
-        let token_type = match res.token_type {
-            0 => TokenType::AccountAccessToken,
-            _ => TokenType::ProductId,
-        };
-        Ok((
-            res.card_id,
-            utils::str_to_bytes(&res.session_key),
-            token_type,
-            res.token,
-        ))
-    }
-
-    pub async fn authenticate_nfc_generic_init_card(
-        &self,
-        card_id: String,
-        account_id: Uuid,
-    ) -> ServiceResult<String> {
-        let req = crate::grpc::authentication::AuthenticateNfcGenericInitCardRequest {
-            card_id,
-            account_id: account_id.to_string(),
-        };
-
-        info!("authenticate_nfc_generic_init_card: {:?}", req);
-        let res = self
-            .grpc_client
-            .lock()
-            .await
-            .authenticate_nfc_generic_init_card_async(&req)?
-            .await?;
-        info!("    -> {:?}", res);
-        Ok(res.card_id)
-    }
-
-    pub async fn authenticate_nfc_mifare_desfire_init_card(
-        &self,
-        card_id: String,
-        account_id: Uuid,
-    ) -> ServiceResult<(String, Vec<u8>)> {
-        let req = crate::grpc::authentication::AuthenticateNfcMifareDesfireInitCardRequest {
-            card_id,
-            account_id: account_id.to_string(),
-        };
-
-        info!("authenticate_nfc_mifare_desfire_init_card: {:?}", req);
-        let res = self
-            .grpc_client
-            .lock()
-            .await
-            .authenticate_nfc_mifare_desfire_init_card_async(&req)?
-            .await?;
-        info!("    -> {:?}", res);
-        Ok((res.card_id, utils::str_to_bytes(&res.key)))
-    }
 }
 
 #[derive(Clone)]
@@ -312,46 +157,10 @@ pub struct ApplicationRequestContext {
 }
 
 impl ApplicationRequestContext {
-    pub async fn send_request_account_access_token(&self) {
+    pub async fn send_websocket_request(&self, message: WebsocketRequestMessage) {
         if self
             .sender
-            .send(ApplicationCommand::RequestAccountAccessToken {})
-            .await
-            .is_err()
-        {
-            error!("Internal message bus seems to be dead. Aborting!");
-            exit(1);
-        }
-    }
-
-    pub async fn send_request_reboot(&self) {
-        if self
-            .sender
-            .send(ApplicationCommand::RequestReboot {})
-            .await
-            .is_err()
-        {
-            error!("Internal message bus seems to be dead. Aborting!");
-            exit(1);
-        }
-    }
-
-    pub async fn send_register_nfc_card(&self, account_id: Uuid) {
-        if self
-            .sender
-            .send(ApplicationCommand::RegisterNfcCard { account_id })
-            .await
-            .is_err()
-        {
-            error!("Internal message bus seems to be dead. Aborting!");
-            exit(1);
-        }
-    }
-
-    pub async fn request_status_information(&self) {
-        if self
-            .sender
-            .send(ApplicationCommand::RequestStatusInformation)
+            .send(ApplicationCommand::Request(message))
             .await
             .is_err()
         {
@@ -377,7 +186,7 @@ impl ApplicationRequestContext {
 }
 
 fn read_file_to_vec(filename: &str) -> Vec<u8> {
-    let mut f = File::open(&filename).expect("no file found");
+    let mut f = File::open(filename).expect("no file found");
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer).expect("buffer overflow");
     buffer
@@ -388,37 +197,17 @@ pub struct Application {
     command_recv: mpsc::Receiver<ApplicationCommand>,
     websocket_sender: Option<mpsc::Sender<WebsocketResponseMessage>>,
     nfc_sender: Option<mpsc::Sender<NfcCommand>>,
-    grpc_client: Arc<Mutex<AsciiPayAuthenticationClient>>,
 }
 
 impl Application {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel(32);
-        let env = Arc::new(EnvBuilder::new().build());
 
-        let default_authority = std::env::var("GRPC_DEFAULT_AUTHORITY").unwrap_or_else(|_| "secure-pay.ascii.coffee".to_string());
-        let connection_address = std::env::var("GRPC_CONNECTION_ADDRESS").unwrap_or_else(|_| "secure-pay.ascii.coffee:443".to_string());
-
-        let root_cert = read_file_to_vec(&SSL_ROOT_CERT);
-        let cert = read_file_to_vec(&SSL_CERT);
-        let private_key = read_file_to_vec(&SSL_PRIVATE_KEY);
-        let ch = ChannelBuilder::new(env)
-            .default_authority(default_authority)
-            .secure_connect(
-                &connection_address,
-                ChannelCredentialsBuilder::new()
-                    .root_cert(root_cert)
-                    .cert(cert, private_key)
-                    .build(),
-            );
-
-        let client = AsciiPayAuthenticationClient::new(ch);
         Self {
             command_sender: tx,
             command_recv: rx,
             websocket_sender: None,
             nfc_sender: None,
-            grpc_client: Arc::new(Mutex::new(client)),
         }
     }
 
@@ -431,7 +220,6 @@ impl Application {
     pub fn get_response_context(&self) -> ApplicationResponseContext {
         ApplicationResponseContext {
             sender: self.command_sender.clone(),
-            grpc_client: self.grpc_client.clone(),
         }
     }
 
@@ -447,6 +235,15 @@ impl Application {
         rx
     }
 
+    fn parse_base64(value: String, parameter: &str) -> Result<Vec<u8>, (String, String)> {
+        general_purpose::STANDARD.decode(value).map_err(|_| {
+            (
+                "Base64 decode error".into(),
+                format!("Could not decode base64 parameter '{parameter}'."),
+            )
+        })
+    }
+
     pub async fn run(mut self) {
         info!("Start application module");
 
@@ -454,127 +251,80 @@ impl Application {
             let recv = self.command_recv.recv().await;
             if let Some(command) = recv {
                 match command {
-                    ApplicationCommand::FoundUnknownBarcode { code } => {
-                        info!("FoundUnknownBarcode({:?})", code);
-                        if let Some(sender) = self.websocket_sender.as_ref() {
-                            if sender
-                                .send(WebsocketResponseMessage::FoundUnknownBarcode { code })
-                                .await
-                                .is_err()
-                            {
-                                error!("Internal message bus seems to be dead. Aborting!");
-                                exit(1);
+                    ApplicationCommand::Request(request) => {
+                        let nfc_command = match request {
+                            WebsocketRequestMessage::NfcIdentifyResponse { card_id, card_type } => {
+                                match Self::parse_base64(card_id, "card_id") {
+                                    Ok(card_id) => {
+                                        Ok(NfcCommand::IdentifyResponse { card_id, card_type })
+                                    }
+                                    Err(err) => Err(err),
+                                }
                             }
-                        }
-                    }
-                    ApplicationCommand::FoundAccountNumber { account_number } => {
-                        info!("FoundAccountNumber({:?})", account_number);
-                        if let Some(sender) = self.websocket_sender.as_ref() {
-                            if sender
-                                .send(WebsocketResponseMessage::FoundAccountNumber {
-                                    account_number,
-                                })
-                                .await
-                                .is_err()
-                            {
-                                error!("Internal message bus seems to be dead. Aborting!");
-                                exit(1);
+                            WebsocketRequestMessage::NfcChallengeResponse {
+                                card_id,
+                                challenge,
+                            } => match Self::parse_base64(card_id, "card_id") {
+                                Ok(card_id) => match Self::parse_base64(challenge, "challenge") {
+                                    Ok(challenge) => {
+                                        Ok(NfcCommand::ChallengeResponse { card_id, challenge })
+                                    }
+                                    Err(err) => Err(err),
+                                },
+                                Err(err) => Err(err),
+                            },
+                            WebsocketRequestMessage::NfcResponseResponse {
+                                card_id,
+                                session_key,
+                            } => match Self::parse_base64(card_id, "card_id") {
+                                Ok(card_id) => match Self::parse_base64(session_key, "session_key")
+                                {
+                                    Ok(session_key) => Ok(NfcCommand::ResponseResponse {
+                                        card_id,
+                                        session_key,
+                                    }),
+                                    Err(err) => Err(err),
+                                },
+                                Err(err) => Err(err),
+                            },
+                            WebsocketRequestMessage::NfcRegister { card_id } => {
+                                match Self::parse_base64(card_id, "card_id") {
+                                    Ok(card_id) => Ok(NfcCommand::Register { card_id }),
+                                    Err(err) => Err(err),
+                                }
                             }
-                        }
-                    }
-                    ApplicationCommand::FoundUnknownNfcCard { id, name } => {
-                        info!("FoundUnknownNfcCard({:?}, {:?})", id, name);
-                        if let Some(sender) = self.websocket_sender.as_ref() {
-                            if sender
-                                .send(WebsocketResponseMessage::FoundUnknownNfcCard { id, name })
-                                .await
-                                .is_err()
-                            {
-                                error!("Internal message bus seems to be dead. Aborting!");
-                                exit(1);
+                            WebsocketRequestMessage::NfcReauthenticate => {
+                                Ok(NfcCommand::Reauthenticate)
                             }
-                        }
-                    }
-                    ApplicationCommand::FoundProductId { product_id } => {
-                        info!("FoundProductId({})", product_id);
-                        if let Some(sender) = self.websocket_sender.as_ref() {
-                            if sender
-                                .send(WebsocketResponseMessage::FoundProductId { product_id })
-                                .await
-                                .is_err()
-                            {
-                                error!("Internal message bus seems to be dead. Aborting!");
-                                exit(1);
-                            }
-                        }
-                    }
-                    ApplicationCommand::FoundAccountAccessToken { access_token } => {
-                        info!("FoundAccountAccessToken()");
-                        if let Some(sender) = self.websocket_sender.as_ref() {
-                            if sender
-                                .send(WebsocketResponseMessage::FoundAccountAccessToken {
-                                    access_token,
-                                })
-                                .await
-                                .is_err()
-                            {
-                                error!("Internal message bus seems to be dead. Aborting!");
-                                exit(1);
-                            }
-                        }
-                    }
-                    ApplicationCommand::RequestAccountAccessToken {} => {
-                        info!("RequestAccountAccessToken()");
+                        };
 
-                        if let Some(sender) = self.nfc_sender.as_ref() {
-                            if sender
-                                .send(NfcCommand::RequestAccountAccessToken)
-                                .await
-                                .is_err()
-                            {
-                                error!("Internal message bus seems to be dead. Aborting!");
-                                exit(1);
+                        match nfc_command {
+                            Ok(nfc_command) => {
+                                if let Some(sender) = self.nfc_sender.as_ref() {
+                                    if sender.send(nfc_command).await.is_err() {
+                                        error!("Internal message bus seems to be dead. Aborting!");
+                                        exit(1);
+                                    }
+                                }
+                            }
+                            Err((source, message)) => {
+                                warn!("Error({:?}, {:?})", source, message);
+                                if let Some(sender) = self.websocket_sender.as_ref() {
+                                    if sender
+                                        .send(WebsocketResponseMessage::Error { source, message })
+                                        .await
+                                        .is_err()
+                                    {
+                                        error!("Internal message bus seems to be dead. Aborting!");
+                                        exit(1);
+                                    }
+                                }
                             }
                         }
                     }
-                    ApplicationCommand::RequestReboot {} => {
-                        info!("RequestReboot()");
-                    }
-                    ApplicationCommand::RegisterNfcCard { account_id } => {
-                        info!("RegisterNfcCard({})", account_id);
-
-                        if let Some(sender) = self.nfc_sender.as_ref() {
-                            if sender
-                                .send(NfcCommand::RegisterNfcCard { account_id })
-                                .await
-                                .is_err()
-                            {
-                                error!("Internal message bus seems to be dead. Aborting!");
-                                exit(1);
-                            }
-                        }
-                    }
-                    ApplicationCommand::NfcCardRemoved {} => {
-                        info!("NfcCardRemoved()");
+                    ApplicationCommand::Response(response) => {
                         if let Some(sender) = self.websocket_sender.as_ref() {
-                            if sender
-                                .send(WebsocketResponseMessage::NfcCardRemoved)
-                                .await
-                                .is_err()
-                            {
-                                error!("Internal message bus seems to be dead. Aborting!");
-                                exit(1);
-                            }
-                        }
-                    }
-                    ApplicationCommand::RegisterNfcCardSuccessful {} => {
-                        info!("RegisterNfcCardSuccessful()");
-                        if let Some(sender) = self.websocket_sender.as_ref() {
-                            if sender
-                                .send(WebsocketResponseMessage::RegisterNfcCardSuccessful)
-                                .await
-                                .is_err()
-                            {
+                            if sender.send(response).await.is_err() {
                                 error!("Internal message bus seems to be dead. Aborting!");
                                 exit(1);
                             }
@@ -585,21 +335,6 @@ impl Application {
                         if let Some(sender) = self.websocket_sender.as_ref() {
                             if sender
                                 .send(WebsocketResponseMessage::Error { source, message })
-                                .await
-                                .is_err()
-                            {
-                                error!("Internal message bus seems to be dead. Aborting!");
-                                exit(1);
-                            }
-                        }
-                    }
-                    ApplicationCommand::RequestStatusInformation {} => {
-                        info!("RequestStatusInformation()");
-
-                        let info = status::get_info().unwrap_or_else(|_| String::new());
-                        if let Some(sender) = self.websocket_sender.as_ref() {
-                            if sender
-                                .send(WebsocketResponseMessage::StatusInformation { status: info })
                                 .await
                                 .is_err()
                             {

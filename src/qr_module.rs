@@ -9,14 +9,6 @@ pub struct QrModule {
     context: ApplicationResponseContext,
 }
 
-const ACCOUNT_NUMBER_PATTERN: &str = "https://pay.ascii.coffee?code=";
-pub fn check_code_for_account_number(code: &str) -> Option<String> {
-    if code.starts_with(ACCOUNT_NUMBER_PATTERN) {
-        return Some(code.trim_start_matches(ACCOUNT_NUMBER_PATTERN).to_owned());
-    }
-    None
-}
-
 impl QrModule {
     pub fn new(context: ApplicationResponseContext) -> Self {
         Self { context }
@@ -40,15 +32,7 @@ impl QrModule {
         let mut reader = qr_reader::QrReader::new()?;
 
         while let Some(code) = reader.get_next_code().await? {
-            if let Some(account_number) = check_code_for_account_number(&code) {
-                self.context.send_found_account_number(account_number).await;
-            } else if let Ok((token_type, token)) =
-                self.context.authenticate_barcode(code.clone()).await
-            {
-                self.context.send_token(token_type, token).await?;
-            } else {
-                self.context.send_found_unknown_barcode(code).await;
-            }
+            self.context.send_barcode_identify_request(code).await;
         }
 
         Ok(())

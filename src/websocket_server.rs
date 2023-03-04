@@ -2,36 +2,78 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use futures::{SinkExt, StreamExt};
 use log::{error, info};
+use serde::{Deserialize, Serialize};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{mpsc, Mutex},
 };
 use tokio_tungstenite::{accept_async, tungstenite::Message};
-use uuid::Uuid;
 
 use crate::{application::ApplicationRequestContext, ServiceResult};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", content = "payload")]
-pub enum WebsocketRequestMessage {
-    RequestAccountAccessToken,
-    RequestReboot,
-    RegisterNfcCard { account_id: Uuid },
-    RequestStatusInformation,
+#[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
+pub enum CardTypeDto {
+    NfcId,
+    AsciiMifare,
+    HostCardEmulation,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload")]
 pub enum WebsocketResponseMessage {
-    FoundUnknownBarcode { code: String },
-    FoundAccountNumber { account_number: String },
-    FoundUnknownNfcCard { id: String, name: String },
-    FoundProductId { product_id: String },
-    FoundAccountAccessToken { access_token: String },
+    BarcodeIdentifyRequest {
+        barcode: String,
+    },
+
+    NfcIdentifyRequest {
+        card_id: String,
+        name: String,
+    },
+    NfcChallengeRequest {
+        card_id: String,
+        request: String,
+    },
+    NfcResponseRequest {
+        card_id: String,
+        challenge: String,
+        response: String,
+    },
+
     NfcCardRemoved,
-    RegisterNfcCardSuccessful,
-    Error { source: String, message: String },
-    StatusInformation { status: String },
+    NfcRegisterRequest {
+        name: String,
+        card_id: String,
+        card_type: CardTypeDto,
+        data: Option<String>,
+    },
+
+    Error {
+        source: String,
+        message: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "payload")]
+#[allow(clippy::enum_variant_names)]
+pub enum WebsocketRequestMessage {
+    NfcIdentifyResponse {
+        card_id: String,
+        card_type: CardTypeDto,
+    },
+    NfcChallengeResponse {
+        card_id: String,
+        challenge: String,
+    },
+    NfcResponseResponse {
+        card_id: String,
+        session_key: String,
+    },
+
+    NfcRegister {
+        card_id: String,
+    },
+    NfcReauthenticate,
 }
 
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, mpsc::Sender<WebsocketResponseMessage>>>>;
@@ -91,7 +133,7 @@ async fn accept_connection(
 ) {
     if let Err(e) = handle_connection(&peer_map, &context, peer, stream).await {
         error!("Error processing connection: {}", e);
-        context.error("WebSocket", &format!("{}", e)).await;
+        context.error("WebSocket", &format!("{e}")).await;
     }
 
     peer_map.lock().await.remove(&peer);
@@ -133,16 +175,7 @@ async fn handle_connection(
 
         let request = serde_json::from_slice::<WebsocketRequestMessage>(&msg_data);
         match request {
-            Ok(WebsocketRequestMessage::RequestAccountAccessToken {}) => {
-                context.send_request_account_access_token().await
-            }
-            Ok(WebsocketRequestMessage::RequestReboot {}) => context.send_request_reboot().await,
-            Ok(WebsocketRequestMessage::RegisterNfcCard { account_id }) => {
-                context.send_register_nfc_card(account_id).await
-            }
-            Ok(WebsocketRequestMessage::RequestStatusInformation) => {
-                context.request_status_information().await
-            }
+            Ok(request) => context.send_websocket_request(request).await,
             Err(e) => {
                 error!("{}", e);
                 context
