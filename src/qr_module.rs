@@ -51,7 +51,7 @@ mod qr_reader {
     use log::info;
     use tokio::task;
 
-    use crate::{env, ServiceResult};
+    use crate::ServiceResult;
 
     struct QrScanner {
         device: Device,
@@ -174,10 +174,11 @@ mod qr_reader {
 
     impl QrReader {
         pub fn new() -> ServiceResult<Self> {
-            let path = env::QR_SCANNER.as_str();
+            let path = std::env::var("QR_SCANNER")
+                .unwrap_or_else(|_| "".to_string());
             info!("Connect qr scanner {}", path);
 
-            let scanner = QrScanner::new(path)?;
+            let scanner = QrScanner::new(&path)?;
             Ok(Self { scanner })
         }
 
