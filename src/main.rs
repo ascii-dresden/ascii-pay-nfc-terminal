@@ -34,7 +34,7 @@ async fn main() {
     );
 
     let args: Vec<String> = env::args().collect();
-    let isSimulationMode = args.iter().any(|a| a == "--simulate");
+    let useSimulation = args.iter().any(|a| a == "--simulate");
 
     let default_panic = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -50,15 +50,14 @@ async fn main() {
     );
     tokio::spawn(websocket_server.run());
 
-    if !isSimulationMode {
-        let qr_module = QrModule::new(application.get_response_context());
-        tokio::spawn(qr_module.run());
-    }
+    let qr_module = QrModule::new(application.get_response_context());
+    tokio::spawn(qr_module.run(useSimulation));
+
     let nfc_module = NfcModule::new(
         application.get_response_context(),
         application.get_nfc_receiver(),
     );
-    tokio::spawn(nfc_module.run(isSimulationMode));
+    tokio::spawn(nfc_module.run(useSimulation));
 
     tokio::spawn(application.run());
     match signal::ctrl_c().await {
