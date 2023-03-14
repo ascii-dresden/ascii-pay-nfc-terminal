@@ -14,9 +14,12 @@ impl QrModule {
         Self { context }
     }
 
-    pub async fn run(mut self) -> ServiceResult<()> {
+    pub async fn run(mut self, useSimulation: bool) -> ServiceResult<()> {
         info!("Start qr module");
         if !cfg!(target_os = "linux") {
+            if !useSimulation {
+                return Ok(());
+            }
             warn!("Could not load libev. Fallback to stdin!");
         }
 
