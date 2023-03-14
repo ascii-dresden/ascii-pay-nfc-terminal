@@ -11,7 +11,7 @@ use crate::{application::ApplicationResponseContext, ServiceResult};
 
 use super::nfc::NfcCard;
 
-const MIFARE_CLASSIC_ID_REQUEST: [u8; 5] = hex!("FF CA 00 00 00");
+pub const MIFARE_CLASSIC_ID_REQUEST: [u8; 5] = hex!("FF CA 00 00 00");
 
 /// Communication to the mifare desfire always requires the tdes decribt
 struct NfcAes {
@@ -90,13 +90,19 @@ pub struct GenericNfcHandler {
 }
 
 impl GenericNfcHandler {
-    fn get_card_id(&self) -> ServiceResult<Vec<u8>> {
+    fn get_card_id(&mut self) -> ServiceResult<Vec<u8>> {
+        if let Some(id) = self.card.get_id() {
+            return Ok(id);
+        }
+
         let atr = self.card.get_atr()?;
         let id = self.card.transmit(&MIFARE_CLASSIC_ID_REQUEST)?;
 
         let mut card_id = Vec::<u8>::with_capacity(atr.len() + id.len());
         card_id.extend(&atr);
         card_id.extend(&id);
+
+        self.card.set_id(card_id.clone());
 
         Ok(card_id)
     }
@@ -146,7 +152,7 @@ impl GenericNfcHandler {
     }
 
     pub async fn handle_card_authentication(
-        &self,
+        &mut self,
         context: &ApplicationResponseContext,
     ) -> ServiceResult<()> {
         let card_id = self.get_card_id()?;
@@ -177,7 +183,7 @@ impl GenericNfcHandler {
     }
 
     pub async fn handle_card_challenge_response(
-        &self,
+        &mut self,
         context: &ApplicationResponseContext,
         card_id: Vec<u8>,
         challenge: Vec<u8>,
@@ -220,7 +226,7 @@ impl GenericNfcHandler {
     }
 
     pub async fn handle_card_register(
-        &self,
+        &mut self,
         context: &ApplicationResponseContext,
         card_id: Vec<u8>,
     ) -> ServiceResult<()> {
@@ -230,7 +236,7 @@ impl GenericNfcHandler {
             .send_nfc_register_request(
                 "Generic NFC Card".into(),
                 card_id,
-                crate::websocket_server::CardTypeDto::NfcId,
+                crate::websocket_server::CardTypeDto::GenericNfc,
                 None,
             )
             .await;

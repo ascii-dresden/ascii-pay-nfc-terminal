@@ -262,7 +262,7 @@ async fn handle_card_authentication(
     context: &ApplicationResponseContext,
     card: NfcCard,
 ) -> NfcCard {
-    let handler = NfcCardHandlerWrapper::new(card);
+    let mut handler = NfcCardHandlerWrapper::new(card);
     if let Err(e) = handler.handle_card_authentication(context).await {
         error!("Cannot authenticate card: {:?}", e);
         context
@@ -277,7 +277,7 @@ async fn handle_card_register(
     card: NfcCard,
     card_id: Vec<u8>,
 ) -> NfcCard {
-    let handler = NfcCardHandlerWrapper::new(card);
+    let mut handler = NfcCardHandlerWrapper::new(card);
     match handler.handle_card_register(context, card_id).await {
         Ok(_) => {}
         Err(e) => {
@@ -319,7 +319,7 @@ async fn handle_card_challenge_response(
     card_id: Vec<u8>,
     challenge: Vec<u8>,
 ) -> NfcCard {
-    let handler = NfcCardHandlerWrapper::new(card);
+    let mut handler = NfcCardHandlerWrapper::new(card);
     match handler
         .handle_card_challenge_response(context, card_id, challenge)
         .await
