@@ -174,8 +174,7 @@ mod qr_reader {
 
     impl QrReader {
         pub fn new() -> ServiceResult<Self> {
-            let path = std::env::var("QR_SCANNER")
-                .unwrap_or_else(|_| "".to_string());
+            let path = std::env::var("QR_SCANNER").unwrap_or_else(|_| "".to_string());
             info!("Connect qr scanner {}", path);
 
             let scanner = QrScanner::new(&path)?;

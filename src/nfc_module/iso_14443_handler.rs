@@ -11,8 +11,14 @@ pub struct Iso14443Handler {
 }
 
 impl Iso14443Handler {
-    fn get_card_id(&self) -> ServiceResult<Vec<u8>> {
-        Ok(self.card.get_id()?)
+    fn get_card_id(&mut self) -> ServiceResult<Vec<u8>> {
+        if let Some(id) = self.card.card.get_id() {
+            return Ok(id);
+        }
+
+        let card_id = self.card.get_id()?;
+        self.card.card.set_id(card_id.clone());
+        Ok(card_id)
     }
 
     pub fn check_compatibility(atr: &[u8]) -> bool {
@@ -40,7 +46,7 @@ impl Iso14443Handler {
     }
 
     pub async fn handle_card_authentication(
-        &self,
+        &mut self,
         context: &ApplicationResponseContext,
     ) -> ServiceResult<()> {
         let card_id = self.get_card_id()?;
@@ -53,7 +59,7 @@ impl Iso14443Handler {
     }
 
     pub async fn handle_card_identify_response(
-        &self,
+        &mut self,
         context: &ApplicationResponseContext,
         card_id: Vec<u8>,
     ) -> ServiceResult<()> {

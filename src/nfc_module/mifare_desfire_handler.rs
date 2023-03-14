@@ -17,13 +17,19 @@ pub struct MiFareDESFireHandler {
 }
 
 impl MiFareDESFireHandler {
-    fn get_card_id(&self) -> ServiceResult<Vec<u8>> {
+    fn get_card_id(&mut self) -> ServiceResult<Vec<u8>> {
+        if let Some(id) = self.card.card.get_id() {
+            return Ok(id);
+        }
+
         let atr = self.card.card.get_atr()?;
         let id = self.card.get_version()?.id();
 
         let mut card_id = Vec::<u8>::with_capacity(atr.len() + id.len());
         card_id.extend(&atr);
         card_id.extend(&id);
+
+        self.card.card.set_id(card_id.clone());
 
         Ok(card_id)
     }
@@ -227,7 +233,7 @@ impl MiFareDESFireHandler {
     }
 
     pub async fn handle_card_authentication(
-        &self,
+        &mut self,
         context: &ApplicationResponseContext,
     ) -> ServiceResult<()> {
         let card_id = self.get_card_id()?;
@@ -240,7 +246,7 @@ impl MiFareDESFireHandler {
     }
 
     pub async fn handle_card_identify_response(
-        &self,
+        &mut self,
         context: &ApplicationResponseContext,
         card_id: Vec<u8>,
     ) -> ServiceResult<()> {
@@ -281,7 +287,7 @@ impl MiFareDESFireHandler {
     }
 
     pub async fn handle_card_register(
-        &self,
+        &mut self,
         context: &ApplicationResponseContext,
         card_id: Vec<u8>,
     ) -> ServiceResult<()> {
@@ -303,7 +309,7 @@ impl MiFareDESFireHandler {
                 .send_nfc_register_request(
                     "Generic NFC Card".into(),
                     card_id,
-                    crate::websocket_server::CardTypeDto::NfcId,
+                    crate::websocket_server::CardTypeDto::GenericNfc,
                     None,
                 )
                 .await;

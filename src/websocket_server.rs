@@ -13,7 +13,7 @@ use crate::{application::ApplicationRequestContext, ServiceResult};
 
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum CardTypeDto {
-    NfcId,
+    GenericNfc,
     AsciiMifare,
     HostCardEmulation,
 }

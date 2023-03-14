@@ -1,4 +1,6 @@
-use crate::{application::ApplicationResponseContext, ServiceResult};
+use crate::{
+    application::ApplicationResponseContext, websocket_server::CardTypeDto, ServiceResult,
+};
 
 use super::{
     nfc::NfcCard, GenericNfcHandler, Iso14443Handler, MiFareDESFireHandler, UnsupportedCardHandler,
@@ -13,16 +15,19 @@ pub enum NfcCardHandlerWrapper {
 
 impl NfcCardHandlerWrapper {
     pub fn new(card: NfcCard) -> Self {
+        let card_type = card.get_card_type();
+        let is_nfc_id = matches!(card_type, Some(CardTypeDto::GenericNfc));
+
         if let Ok(atr) = card.get_atr() {
             if Iso14443Handler::check_compatibility(&atr) {
                 return Self::Iso14443(Iso14443Handler::new(card));
             }
 
-            if MiFareDESFireHandler::check_compatibility(&atr) {
+            if MiFareDESFireHandler::check_compatibility(&atr) && !is_nfc_id {
                 return Self::MiFareDESFire(MiFareDESFireHandler::new(card));
             }
 
-            if GenericNfcHandler::check_compatibility(&atr) {
+            if GenericNfcHandler::check_compatibility(&atr) || is_nfc_id {
                 return Self::MiFareClassic(GenericNfcHandler::new(card));
             }
         }
@@ -40,7 +45,7 @@ impl NfcCardHandlerWrapper {
     }
 
     pub async fn handle_card_authentication(
-        &self,
+        &mut self,
         context: &ApplicationResponseContext,
     ) -> ServiceResult<()> {
         match self {
@@ -81,7 +86,7 @@ impl NfcCardHandlerWrapper {
     }
 
     pub async fn handle_card_challenge_response(
-        &self,
+        &mut self,
         context: &ApplicationResponseContext,
         card_id: Vec<u8>,
         challenge: Vec<u8>,
@@ -141,7 +146,7 @@ impl NfcCardHandlerWrapper {
     }
 
     pub async fn handle_card_register(
-        &self,
+        &mut self,
         context: &ApplicationResponseContext,
         card_id: Vec<u8>,
     ) -> ServiceResult<()> {
