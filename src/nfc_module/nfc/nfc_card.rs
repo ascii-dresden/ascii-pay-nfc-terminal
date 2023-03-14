@@ -86,6 +86,9 @@ impl NfcCard {
     }
 
     pub fn get_id(&self) -> Option<Vec<u8>> {
+        if let NfcCardImpl::Simulation(_) = self.card {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
         self.id.clone()
     }
 }
