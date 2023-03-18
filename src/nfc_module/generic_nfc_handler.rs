@@ -115,6 +115,10 @@ impl GenericNfcHandler {
                 info!("Insert 'MiFare Classic' card");
                 true
             }
+            b"\x3B\x87\x80\x01\x80\x31\xC0\x73\xD6\x31\xC0\x23" => {
+                info!("Insert 'MiFare Classic/Student Card'");
+                true
+            }
             b"\x3B\x8F\x80\x01\x80\x4F\x0C\xA0\x00\x00\x03\x06\x03\x00\x03\x00\x00\x00\x00\x68" => {
                 info!("Insert 'MiFare Ultralight' card");
                 true
@@ -123,8 +127,16 @@ impl GenericNfcHandler {
                 info!("Insert 'Yubikey Neo' card");
                 true
             }
-            b"3B\x8A\x80\x01\x00\x31\xC1\x73\xC8\x40\x00\x00\x90\x00\x90" => {
+            b"\x3B\x8A\x80\x01\x00\x31\xC1\x73\xC8\x40\x00\x00\x90\x00\x90" => {
                 info!("Insert 'MiFare DESFire EV2' card");
+                true
+            }
+            b"\x3B\x8F\x80\x01\x4A\x43\x4F\x50\x33\x20\x41\x54\x53\x20\x43\x48\xFF\xFF\xFF\x99" => {
+                info!("Insert 'Some Samsung SmartWatch'");
+                true
+            }
+            b"\x3B\x85\x80\x01\x5A\x43\x56\x44\x56\x59" => {
+                info!("Insert 'DVB Monatskarte'");
                 true
             }
             _ => false,
