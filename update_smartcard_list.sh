@@ -1,3 +1,3 @@
 #!/bin/bash
 
-curl http://ludovic.rousseau.free.fr/softwares/pcsc-tools/smartcard_list.txt > smartcard_list.txt
+curl https://pcsc-tools.apdu.fr/smartcard_list.txt > smartcard_list.txt
