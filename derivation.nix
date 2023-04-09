@@ -1,22 +1,14 @@
 { naersk
 , src
 , lib
-, pkg-config
-, protobuf
-, gcc10
-, binutils
-, cmake
-, openssl
 , pcsclite
+, pkg-config
 , libnfc
 , libevdev
 , ccid
 , acsccid
 , opensc
 , pcsctools
-, protobufc
-, grpc
-, perl
 }:
 
 naersk.buildPackage {
@@ -25,8 +17,8 @@ naersk.buildPackage {
 
   inherit src;
 
-  nativeBuildInputs = [ pkg-config protobuf cmake binutils perl grpc gcc10 ];
-  buildInputs = [ openssl pcsclite libnfc libevdev ccid acsccid opensc pcsctools protobufc grpc gcc10 ];
+  nativeBuildInputs = [ pkg-config ];
+  buildInputs = [ pcsclite libnfc libevdev ccid acsccid opensc pcsctools ];
 
   meta = with lib; {
     description = "Rust server which handles the transactions of the ascii-pay system.";
