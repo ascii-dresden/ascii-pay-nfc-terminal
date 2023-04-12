@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use pcsc;
 
 use crate::websocket_server::CardTypeDto;
@@ -7,6 +9,7 @@ use super::{simulation_card::SimulationCard, utils::*};
 enum NfcCardImpl {
     Pcsc(pcsc::Card),
     Simulation(SimulationCard),
+    Timeout(u64)
 }
 
 pub struct NfcCard {
@@ -45,6 +48,7 @@ impl NfcCard {
                 Ok(data.to_vec())
             }
             NfcCardImpl::Simulation(ref card) => card.get_attribute(attribute),
+            NfcCardImpl::Timeout(_) => NfcResult::Err(NfcError::CommunicationError),
         }
     }
 
@@ -58,6 +62,7 @@ impl NfcCard {
                 Ok(data.to_vec())
             }
             NfcCardImpl::Simulation(ref card) => card.transmit(query),
+            NfcCardImpl::Timeout(_) => NfcResult::Err(NfcError::CommunicationError),
         }
     }
 
@@ -90,5 +95,28 @@ impl NfcCard {
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
         self.id.clone()
+    }
+
+    pub fn remove_card(&mut self) {
+        let time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        self.card = NfcCardImpl::Timeout(time + 8);
+    }
+
+    pub fn has_timeout_occurred(&self) -> bool {
+        match self.card {
+            NfcCardImpl::Pcsc(_) => false,
+            NfcCardImpl::Simulation(_) => false,
+            NfcCardImpl::Timeout(timeout) => {
+                let time = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+
+                time > timeout
+            },
+        }
     }
 }

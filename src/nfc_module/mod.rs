@@ -95,6 +95,11 @@ async fn run_spawn(
         if !current_cards.is_empty() {
             if let Some(key) = current_cards.keys().next().cloned() {
                 if let Some(card) = current_cards.remove(&key) {
+                    if card.has_timeout_occurred() {
+                        // Card is no longer valid -> remove it.
+                        continue;
+                    }
+
                     let card = match command {
                         NfcCommand::Reauthenticate => {
                             handle_card_authentication(&context, card).await
@@ -119,7 +124,6 @@ async fn run_spawn(
 
                     current_cards.insert(key, card);
                 } else {
-                    #[allow(clippy::single_match)]
                     match command {
                         NfcCommand::IdentifyResponse { .. } => {
                             context.send_error("NFC Reader", "No nfc card found!").await;
@@ -137,7 +141,6 @@ async fn run_spawn(
                     };
                 }
             } else {
-                #[allow(clippy::single_match)]
                 match command {
                     NfcCommand::IdentifyResponse { .. } => {
                         context.send_error("NFC Reader", "No nfc card found!").await;
@@ -206,13 +209,20 @@ fn run_loop(context: ApplicationResponseContext, current_cards: CardMapMutex) {
             });
 
             // Status has changed, read new states.
+            let mut current_cards = rt.block_on(current_cards.lock());
             for (c_name, contains_state_present) in rs_states {
-                let mut current_cards = rt.block_on(current_cards.lock());
                 if c_name.as_c_str() != PNP_NOTIFICATION() {
                     let name = c_name.to_str().unwrap_or("unknown").to_owned();
                     if contains_state_present {
                         if current_cards.contains_key(&name) {
                             continue;
+                        }
+
+                        // Remove current card.
+                        if current_cards.contains_key(&name) {
+                            current_cards.remove(&name);
+                            info!("Remove nfc card");
+                            rt.block_on(context.send_nfc_card_removed());
                         }
 
                         // New card, add to map und read.
@@ -222,14 +232,18 @@ fn run_loop(context: ApplicationResponseContext, current_cards: CardMapMutex) {
                         );
 
                         let card = rt.block_on(handle_card_authentication(&context, card));
-
                         current_cards.insert(name, card);
                     } else {
                         // Remove current card.
                         if current_cards.contains_key(&name) {
-                            current_cards.remove(&name);
+                            let card = current_cards.remove(&name);
                             info!("Remove nfc card");
                             rt.block_on(context.send_nfc_card_removed());
+
+                            if let Some(mut card) = card {
+                                card.remove_card();
+                                current_cards.insert(name, card);
+                            }
                         }
                     }
                 }
