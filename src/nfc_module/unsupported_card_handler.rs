@@ -31,7 +31,7 @@ impl UnsupportedCardHandler {
         context: &ApplicationResponseContext,
     ) -> ServiceResult<()> {
         info!("Trying to authenticate an unsupported nfc card!");
-        let atr = self.card.get_atr()?;
+        let atr = self.card.get_atr_or_default();
         info!("   ATR: {}", utils::bytes_to_string(&atr));
 
         let ident = identify_atr(&atr).await;

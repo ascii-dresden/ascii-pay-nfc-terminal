@@ -14,10 +14,7 @@ pub struct MiFareDESFireCard {
 impl MiFareDESFireCard {
     #[allow(clippy::match_like_matches_macro)]
     pub fn is_compatible(card: &NfcCard) -> bool {
-        let atr = match card.get_atr() {
-            Ok(atr) => atr,
-            Err(_) => return false,
-        };
+        let atr = card.get_atr_or_default();
 
         match atr.as_slice() {
             b"\x3B\x81\x80\x01\x80\x80" => true,

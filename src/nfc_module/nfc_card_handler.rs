@@ -14,7 +14,7 @@ pub enum NfcCardHandlerWrapper {
 }
 
 impl NfcCardHandlerWrapper {
-    pub fn new(card: NfcCard) -> Self {
+    pub fn new(mut card: NfcCard) -> Self {
         let card_type = card.get_card_type();
         let is_nfc_id = matches!(card_type, Some(CardTypeDto::GenericNfc));
 

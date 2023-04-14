@@ -9,13 +9,14 @@ use super::{simulation_card::SimulationCard, utils::*};
 enum NfcCardImpl {
     Pcsc(pcsc::Card),
     Simulation(SimulationCard),
-    Timeout(u64)
+    Timeout(u64),
 }
 
 pub struct NfcCard {
     card: NfcCardImpl,
     id: Option<Vec<u8>>,
     auth_data: Vec<u8>,
+    atr: Option<Vec<u8>>,
     card_type: Option<CardTypeDto>,
 }
 
@@ -25,6 +26,7 @@ impl NfcCard {
             card: NfcCardImpl::Pcsc(card),
             id: None,
             auth_data: Vec::new(),
+            atr: None,
             card_type: None,
         }
     }
@@ -33,6 +35,7 @@ impl NfcCard {
             card: NfcCardImpl::Simulation(card),
             id: None,
             auth_data: Vec::new(),
+            atr: None,
             card_type: None,
         }
     }
@@ -66,8 +69,20 @@ impl NfcCard {
         }
     }
 
-    pub fn get_atr(&self) -> NfcResult<Vec<u8>> {
-        self.get_attribute(pcsc::Attribute::AtrString)
+    pub fn get_atr(&mut self) -> NfcResult<Vec<u8>> {
+        if let Some(ref atr) = self.atr {
+            return Ok(atr.clone());
+        }
+        let atr = self.get_attribute(pcsc::Attribute::AtrString)?;
+        self.atr = Some(atr.clone());
+        Ok(atr)
+    }
+
+    pub fn get_atr_or_default(&self) -> Vec<u8> {
+        if let Some(ref atr) = self.atr {
+            return atr.clone();
+        }
+        Vec::new()
     }
 
     pub fn set_card_type(&mut self, card_type: Option<CardTypeDto>) {
@@ -97,12 +112,21 @@ impl NfcCard {
         self.id.clone()
     }
 
-    pub fn remove_card(&mut self) {
+    pub fn is_in_timeout_mode(&self) -> bool {
+        matches!(self.card, NfcCardImpl::Timeout(_))
+    }
+
+    pub fn remove_card(mut self) -> Option<Self> {
+        if self.auth_data.is_empty() || !matches!(self.card_type, Some(CardTypeDto::GenericNfc)) {
+            return None;
+        }
+
         let time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
         self.card = NfcCardImpl::Timeout(time + 8);
+        Some(self)
     }
 
     pub fn has_timeout_occurred(&self) -> bool {
@@ -116,7 +140,7 @@ impl NfcCard {
                     .as_secs();
 
                 time > timeout
-            },
+            }
         }
     }
 }

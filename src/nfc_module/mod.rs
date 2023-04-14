@@ -215,14 +215,14 @@ fn run_loop(context: ApplicationResponseContext, current_cards: CardMapMutex) {
                     let name = c_name.to_str().unwrap_or("unknown").to_owned();
                     if contains_state_present {
                         if current_cards.contains_key(&name) {
-                            continue;
-                        }
-
-                        // Remove current card.
-                        if current_cards.contains_key(&name) {
-                            current_cards.remove(&name);
-                            info!("Remove nfc card");
-                            rt.block_on(context.send_nfc_card_removed());
+                            if current_cards[&name].is_in_timeout_mode() {
+                                // Remove current card.
+                                current_cards.remove(&name);
+                                info!("Remove nfc card");
+                                rt.block_on(context.send_nfc_card_removed());
+                            } else {
+                                continue;
+                            }
                         }
 
                         // New card, add to map und read.
@@ -240,9 +240,12 @@ fn run_loop(context: ApplicationResponseContext, current_cards: CardMapMutex) {
                             info!("Remove nfc card");
                             rt.block_on(context.send_nfc_card_removed());
 
-                            if let Some(mut card) = card {
-                                card.remove_card();
-                                current_cards.insert(name, card);
+                            if let Some(card) = card {
+                                let card = card.remove_card();
+
+                                if let Some(card) = card {
+                                    current_cards.insert(name, card);
+                                }
                             }
                         }
                     }
@@ -318,9 +321,9 @@ async fn handle_card_identify_response(
     {
         Ok(_) => {}
         Err(e) => {
-            error!("Could not register nfc card: {}", e);
+            error!("Could not identify nfc card: {}", e);
             context
-                .send_error("NFC Reader", "Could not register NFC card!")
+                .send_error("NFC Reader", "Could not identify NFC card!")
                 .await
         }
     }
@@ -340,9 +343,9 @@ async fn handle_card_challenge_response(
     {
         Ok(_) => {}
         Err(e) => {
-            error!("Could not register nfc card: {}", e);
+            error!("Could not challenge nfc card: {}", e);
             context
-                .send_error("NFC Reader", "Could not register NFC card!")
+                .send_error("NFC Reader", "Could not challenge NFC card!")
                 .await
         }
     }
@@ -362,9 +365,9 @@ async fn handle_card_response_response(
     {
         Ok(_) => {}
         Err(e) => {
-            error!("Could not register nfc card: {}", e);
+            error!("Could not response nfc card: {}", e);
             context
-                .send_error("NFC Reader", "Could not register NFC card!")
+                .send_error("NFC Reader", "Could not response NFC card!")
                 .await
         }
     }
