@@ -8,7 +8,7 @@
 , ccid
 , acsccid
 , opensc
-, pcsctools
+, pcsc-tools
 }:
 
 naersk.buildPackage {
@@ -18,7 +18,7 @@ naersk.buildPackage {
   inherit src;
 
   nativeBuildInputs = [ pkg-config ];
-  buildInputs = [ pcsclite libnfc libevdev ccid acsccid opensc pcsctools ];
+  buildInputs = [ pcsclite libnfc libevdev ccid acsccid opensc pcsc-tools ];
 
   meta = with lib; {
     description = "Rust server which handles the transactions of the ascii-pay system.";
